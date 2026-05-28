@@ -69,73 +69,45 @@ npm run test:watch
 
 ## Integration with Cloudflare Workers & Hono
 
-To host your skill subdomains (e.g., `rails-agent-skills.ismaelmarin.dev/mcp`) on your free Cloudflare Wrangler/Pages account:
+This package includes a helper (`handleMcpRequest` in `dist/worker.js`) to host your MCP server over Server-Sent Events (SSE) on serverless platforms like Cloudflare Workers or Pages Functions running Hono.
 
-### 1. DNS & Custom Domains Configuration
-In your Cloudflare dashboard under your Pages project (e.g. `ismaelmarin-dev`), add the subdomains as **Custom Domains**:
-* `rails-agent-skills.ismaelmarin.dev`
-* `ruby-core-skills.ismaelmarin.dev`
-* `hanakai-yaku.ismaelmarin.dev`
-* `agnostic-planning-skills.ismaelmarin.dev`
+### Example Router Configuration
 
-All subdomains should point directly to your main Pages project.
-
-### 2. Hono Router Integration
-In your portfolio application router (e.g., `ismaelmarin/src/index.tsx`), import the `handleMcpRequest` helper and `createMcpServer` factory:
+In your Cloudflare Worker or Hono router:
 
 ```typescript
 import { Hono } from 'hono';
-import { handleMcpRequest } from './worker.js'; // imported from @igmarin/mcp-skills-tool
-import { createMcpServer } from './mcp-server.js';
+import { handleMcpRequest, createMcpServer } from '@igmarin/mcp-skills-tool';
 
 const app = new Hono();
 
-// Map subdomains to their respective GitHub repositories
-const SUBDOMAIN_MAP: Record<string, { repo: string; tile: string }> = {
-  "rails-agent-skills": { repo: "igmarin/rails-agent-skills", tile: "tile.json" },
-  "ruby-core-skills": { repo: "igmarin/ruby-core-skills", tile: "tile.json" },
-  "hanakai-yaku": { repo: "igmarin/hanakai-yaku", tile: "tile.json" },
-  "agnostic-planning-skills": { repo: "igmarin/agnostic-planning-skills", tile: "tile.json" }
-};
-
-// Route MCP requests dynamically
 app.all('/mcp/*', async (c) => {
-  const host = c.req.header('host') || "";
-  const subdomain = host.split('.')[0];
-  const config = SUBDOMAIN_MAP[subdomain];
-
-  if (!config) {
-    return c.text("Subdomain not found in MCP registry", 404);
-  }
-
-  // Create the MCP server instance fetching its skills dynamically from GitHub
   const creator = async () => {
-    // 1. Fetch tile.json
-    const tileRes = await fetch(`https://raw.githubusercontent.com/${config.repo}/main/${config.tile}`);
-    const tileJson = await tileRes.json();
+    // 1. Fetch or load your tile.json configuration
+    const tileJson = {
+      name: "example-skills",
+      version: "1.0.0",
+      summary: "An example skill pack",
+      skills: {
+        "example-skill": {
+          path: "skills/example-skill/SKILL.md"
+        }
+      }
+    };
 
-    // 2. Fetch skill contents
+    // 2. Fetch/resolve skill contents (e.g. from GitHub raw content or local files)
     const fetchSkillContent = async (skillPath: string) => {
-      const res = await fetch(`https://raw.githubusercontent.com/${config.repo}/main/${skillPath}`);
+      // Example: fetch from GitHub:
+      const res = await fetch(`https://raw.githubusercontent.com/username/repo/main/${skillPath}`);
       return res.text();
     };
 
     return createMcpServer(tileJson, fetchSkillContent);
   };
 
-  // Process GET (SSE) and POST (JSON-RPC) traffic via standard transport
+  // Process GET (SSE connection) and POST (incoming JSON-RPC messages)
   return handleMcpRequest(c.req.raw, creator);
-});
-
-// Serve main portfolio page
-app.get('/', (c) => {
-  // your existing portfolio logic...
 });
 
 export default app;
 ```
-
-With this setup:
-* When an AI client makes a `GET` request to `https://rails-agent-skills.ismaelmarin.dev/mcp`, an SSE connection is opened.
-* When the client sends commands via `POST https://rails-agent-skills.ismaelmarin.dev/mcp/post?sessionId=...`, the Hono route forwards it to the active transport session.
-* All skills are fetched on-demand from the raw GitHub contents, keeping the server completely stateless.

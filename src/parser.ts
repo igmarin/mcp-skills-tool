@@ -4,15 +4,15 @@ export const SkillSchema = z.object({
   path: z.string()
 });
 
-export const TileConfigSchema = z.object({
+export const DirectoryConfigSchema = z.object({
   name: z.string(),
   version: z.string(),
   summary: z.string(),
   skills: z.record(z.string(), SkillSchema)
 });
 
-export type TileConfig = z.infer<typeof TileConfigSchema>;
+export type DirectoryConfig = z.infer<typeof DirectoryConfigSchema>;
 
-export function parseTileConfig(json: unknown): TileConfig {
-  return TileConfigSchema.parse(json);
+export function parseDirectoryConfig(json: unknown): DirectoryConfig {
+  return DirectoryConfigSchema.parse(json);
 }

@@ -3,16 +3,16 @@ import { Command } from "commander";
 import * as fs from "fs/promises";
 import * as path from "path";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { parseTileConfig } from "./parser.js";
+import { parseDirectoryConfig } from "./parser.js";
 import { createMcpServer } from "./mcp-server.js";
 
 const program = new Command();
 
 program
   .name("mcp-skills-tool")
-  .description("MCP Server to expose agent skills defined in tile.json")
+  .description("MCP Server to expose agent skills defined in directory.json")
   .version("1.0.0")
-  .requiredOption("-c, --config <path>", "Path or URL to tile.json config file")
+  .requiredOption("-c, --config <path>", "Path or URL to directory.json config file")
   .parse(process.argv);
 
 const options = program.opts();
@@ -21,7 +21,7 @@ async function main() {
   const configSource = options.config;
   const isRemote = configSource.startsWith("http://") || configSource.startsWith("https://");
 
-  let configJson: any;
+  let configJson: unknown;
   let fetchSkillContent: (skillPath: string) => Promise<string>;
 
   if (isRemote) {
@@ -59,7 +59,7 @@ async function main() {
     };
   }
 
-  const config = parseTileConfig(configJson);
+  const config = parseDirectoryConfig(configJson);
   const server = createMcpServer(config, fetchSkillContent);
 
   // Connect to stdio transport (default CLI behavior)

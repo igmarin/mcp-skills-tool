@@ -1,0 +1,85 @@
+name: kimi-code-review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths-ignore:
+      - "**.md"
+      - ".github/**"
+      - "LICENSE"
+      - ".gitignore"
+      - "package-lock.json"
+
+concurrency:
+  group: ${{ github.repository }}-${{ github.event.number || github.head_ref }}-${{ github.workflow }}-${{ github.event_name == 'pull_request_review_comment' && 'pr_comment' || 'pr' }}
+  cancel-in-progress: ${{ github.event_name != 'pull_request_review_comment' }}
+
+permissions:
+  issues: write
+  pull-requests: write
+  contents: write
+
+jobs:
+  review:
+    if: github.event.pull_request.draft == false && github.event.sender.type != 'Bot'
+    runs-on: ubuntu-latest
+    steps:
+      - name: PR Agent Review with Kimi via OpenRouter
+        uses: qodo-ai/pr-agent@main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENROUTER.KEY: ${{ secrets.OPENROUTER_API_KEY }}
+
+          # Model config
+          config.model: "moonshotai/kimi-k2"
+          config.custom_model_max_tokens: 262144
+          config.ai_timeout: 300
+          config.fallback_models: '["moonshotai/kimi-k2.5"]'
+
+          # Reviewer instructions tailored to mcp-skills-tool
+          pr_reviewer.extra_instructions: |
+            You are a Principal TypeScript/Node.js Architect reviewing a Pull Request for "mcp-skills-tool", a Model Context Protocol (MCP) server built with TypeScript and Node.js.
+
+            Analyze the code diff carefully and provide feedback strictly based on these priorities:
+
+            1. TYPE SAFETY, ERROR HANDLING & ZOD VALIDATION (Highest Priority):
+               - Ensure all JSON inputs and external data are strictly validated using Zod schemas.
+               - Verify that error handling is robust, with meaningful error messages propagated to MCP clients.
+               - Check for proper use of TypeScript strict mode; avoid implicit `any`, unhandled promises, or missing type guards.
+
+            2. MCP PROTOCOL COMPLIANCE & ARCHITECTURE:
+               - Ensure MCP server initialization follows SDK best practices (capabilities, request handlers, resource/tool schemas).
+               - Verify that resource URIs (`skill://`) and tool inputs are correctly formatted and validated.
+               - Check for clean separation between transport layer (stdio/SSE), server logic, and configuration parsing.
+
+            3. TEST ROBUSTNESS, HYGIENE & COVERAGE:
+               - Verify that unit tests (Vitest) cover critical paths: Zod parsing, MCP handler behavior, error cases.
+               - Ensure tests mock external dependencies cleanly and do not leak state between test cases.
+               - Check that coverage thresholds (70%) are not regressing.
+
+            4. SECURITY & DEPLOYMENT:
+               - Check for injection risks in file paths or remote URLs (path traversal, SSRF).
+               - Verify Docker build is minimal and secure (no unnecessary privileges, minimal base image).
+               - Ensure no secrets or API keys are hardcoded in source files.
+
+            CRITICAL INSTRUCTIONS:
+            - Focus comments on [Critical Bug], [Architectural Flaw], or [Optimization].
+            - Do NOT comment on minor formatting or styling unless it causes runtime degradation or security issues.
+            - In your summary review comment, you MUST include a metadata block at the very end in the following exact format (no formatting or code blocks around it):
+              [OPENCODE_VERDICT_METADATA]
+              Verdict: <NEGATIVE | NEUTRAL | POSITIVE>
+              CriticalBugs: <count of critical bugs found>
+              SecurityIssues: <count of security issues found>
+
+          # Enable auto features
+          github_action_config.auto_review: "true"
+          github_action_config.auto_describe: "false"
+          github_action_config.auto_improve: "false"
+          pr_reviewer.inline_code_comments: "true"
+          pr_reviewer.persistent_comment: "true"
+
+      - name: Evaluate Review and Update PR State
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: node scripts/evaluate-review.js

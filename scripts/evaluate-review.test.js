@@ -45,16 +45,19 @@ describe('determineReviewState', () => {
     expect(determineReviewState('NEGATIVE', 0, 0).targetState).toBe('REQUEST_CHANGES');
     expect(determineReviewState('POSITIVE', 0, 1).targetState).toBe('REQUEST_CHANGES');
     expect(determineReviewState('POSITIVE', 3, 0).targetState).toBe('REQUEST_CHANGES');
+    expect(determineReviewState('NEGATIVE', 0, 0).message).toContain('❌');
   });
 
   it('should approve for any verdict with 0 bugs and 0 security issues', () => {
     expect(determineReviewState('POSITIVE', 0, 0).targetState).toBe('APPROVE');
     expect(determineReviewState('NEUTRAL', 0, 0).targetState).toBe('APPROVE');
+    expect(determineReviewState('POSITIVE', 0, 0).message).toContain('✅');
   });
 
   it('should comment when there are 1-2 critical bugs and 0 security issues', () => {
     expect(determineReviewState('POSITIVE', 2, 0).targetState).toBe('COMMENT');
     expect(determineReviewState('NEUTRAL', 1, 0).targetState).toBe('COMMENT');
+    expect(determineReviewState('POSITIVE', 2, 0).message).toContain('💬');
   });
 });
 
@@ -93,7 +96,7 @@ describe('submitPRReview', () => {
 
     expect(execSyncSpy).toHaveBeenCalledTimes(2);
     expect(execSyncSpy).toHaveBeenNthCalledWith(1, 'gh pr review 5 --approve -b "Looks good"');
-    expect(execSyncSpy).toHaveBeenNthCalledWith(2, 'gh pr review 5 --comment -b "[Bot fallback from APPROVE] Looks good"');
+    expect(execSyncSpy).toHaveBeenNthCalledWith(2, 'gh pr review 5 --comment -b "⚠️ [Bot fallback from APPROVE] Looks good"');
   });
 
   it('should escape shell metacharacters in fallback message', () => {
@@ -106,7 +109,7 @@ describe('submitPRReview', () => {
     submitPRReview('5', 'APPROVE', 'Hello `world` $HOME "test"');
 
     expect(execSyncSpy).toHaveBeenCalledTimes(2);
-    expect(execSyncSpy).toHaveBeenNthCalledWith(2, 'gh pr review 5 --comment -b "[Bot fallback from APPROVE] Hello \\`world\\` \\$HOME \\"test\\""');
+    expect(execSyncSpy).toHaveBeenNthCalledWith(2, 'gh pr review 5 --comment -b "⚠️ [Bot fallback from APPROVE] Hello \\`world\\` \\$HOME \\"test\\""');
   });
 
   it('should rethrow error if approve fails with non-permission error', () => {

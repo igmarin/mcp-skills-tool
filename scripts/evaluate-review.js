@@ -125,23 +125,27 @@ export function evaluateFeedbackFallback(botItems) {
  * @returns {{ targetState: 'REQUEST_CHANGES' | 'APPROVE' | 'COMMENT', message: string }}
  */
 export function determineReviewState(verdict, criticalBugs, securityIssues) {
+  // Gate criteria:
+  // - NEGATIVE review OR any security issues OR > 2 critical bugs -> REQUEST_CHANGES
+  // - Clean review (POSITIVE/APPROVED, 0 bugs, 0 security issues) -> APPROVE
+  // - Otherwise -> COMMENT
   if (verdict === 'NEGATIVE' || securityIssues > 0 || criticalBugs > 2) {
     return {
       targetState: 'REQUEST_CHANGES',
-      message: `OpenCode Review: Changes Requested. Found ${securityIssues} security issue(s) and ${criticalBugs} critical bug(s). Please review and address these issues.`
+      message: `❌ OpenCode Review: Changes Requested. Found ${securityIssues} security issue(s) and ${criticalBugs} critical bug(s). Please review and address these issues.`
     };
   }
 
   if (criticalBugs === 0 && securityIssues === 0) {
     return {
       targetState: 'APPROVE',
-      message: `OpenCode Review: Approved! No critical bugs or security issues found. Everything looks good!`
+      message: `✅ OpenCode Review: Approved! No critical bugs or security issues found. Everything looks good!`
     };
   }
 
   return {
     targetState: 'COMMENT',
-    message: `OpenCode Review: Comments left. Minor feedback or optimization suggestions provided (Critical Bugs: ${criticalBugs}).`
+    message: `💬 OpenCode Review: Comments left. Minor feedback or optimization suggestions provided (Critical Bugs: ${criticalBugs}).`
   };
 }
 
@@ -181,7 +185,7 @@ export function submitPRReview(prNumber, state, message) {
 
     if (state !== 'COMMENT' && (errorMsg.includes('not permitted') || errorMsg.includes('GraphQL:') || errorMsg.includes('permission'))) {
       console.warn(`Warning: Failed to submit review as ${state} due to permission constraints. Falling back to COMMENT review.`);
-      const fallbackMessage = `[Bot fallback from ${state}] ${message}`;
+      const fallbackMessage = `⚠️ [Bot fallback from ${state}] ${message}`;
       const escapedFallback = fallbackMessage
         .replace(/\\/g, '\\\\')
         .replace(/"/g, '\\"')

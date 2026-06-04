@@ -1,0 +1,5 @@
+name = 'mcp-skills-tool'
+
+[[env]]
+key = 'NODE_ENV'
+value = 'production'

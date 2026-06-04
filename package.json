@@ -1,7 +1,7 @@
 {
   "name": "@igmarin/mcp-skills-tool",
   "version": "1.0.0",
-  "description": "CLI and Cloudflare Worker MCP server to serve AI skills/tiles",
+  "description": "CLI and Cloudflare Worker MCP server to serve AI skills from directory.json packs",
   "main": "dist/index.js",
   "type": "module",
   "bin": {
@@ -11,6 +11,9 @@
     "build": "tsc",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint .",
+    "setup-hooks": "cp .git-hooks/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit",
     "start": "tsx src/index.ts"
   },
   "dependencies": {
@@ -20,8 +23,12 @@
   },
   "devDependencies": {
     "@types/node": "^20.12.7",
+    "@vitest/coverage-v8": "^4.1.8",
+    "eslint": "^9.39.1",
+    "globals": "^15.0.0",
     "tsx": "^4.7.2",
     "typescript": "^5.4.5",
-    "vitest": "^1.5.0"
+    "typescript-eslint": "^8.0.0",
+    "vitest": "^4.1.8"
   }
 }

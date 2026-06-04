@@ -1,3 +1,4 @@
+import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { JSONRPCMessage, JSONRPCMessageSchema } from "@modelcontextprotocol/sdk/types.js";
 
@@ -46,7 +47,7 @@ export class CloudflareWorkerSseTransport implements Transport {
       try {
         const payload = `event: ${event}\ndata: ${data}\n\n`;
         this.controller.enqueue(new TextEncoder().encode(payload));
-      } catch (err: any) {
+      } catch {
         this.close();
       }
     }
@@ -62,16 +63,22 @@ export class CloudflareWorkerSseTransport implements Transport {
       if (this.onmessage) {
         this.onmessage(parsed);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (this.onerror) {
-        this.onerror(err);
+        this.onerror(err instanceof Error ? err : new Error(String(err)));
       }
       throw err;
     }
   }
 
+  /**
+   * Gracefully closes the SSE stream and cleans up internal state.
+   * Invokes the optional {@link onclose} callback if registered.
+   */
   async close(): Promise<void> {
-    if (this.isClosed) return;
+    if (this.isClosed) {
+      return;
+    }
     this.isClosed = true;
     if (this.controller) {
       try {
@@ -95,11 +102,18 @@ export class CloudflareWorkerSseTransport implements Transport {
 export const activeTransports = new Map<string, CloudflareWorkerSseTransport>();
 
 /**
- * Route request handler for Hono/Cloudflare Workers
+ * Handles incoming HTTP requests for an MCP server running over SSE on Cloudflare Workers.
+ *
+ * - `GET`  requests establish a new SSE connection and generate a session ID
+ * - `POST` requests to `/post?sessionId=...` forward JSON-RPC messages to the active transport
+ *
+ * @param request - The incoming web Request object
+ * @param mcpServerCreator - Async factory that builds an MCP {@link Server} instance per connection
+ * @returns An HTTP Response (SSE stream for GET, status ack for POST, or 404)
  */
 export async function handleMcpRequest(
   request: Request,
-  mcpServerCreator: () => Promise<any>
+  mcpServerCreator: () => Promise<Server>
 ): Promise<Response> {
   const url = new URL(request.url);
 
@@ -117,7 +131,7 @@ export async function handleMcpRequest(
     const stream = new ReadableStream({
       start(controller) {
         transport.setController(controller);
-        mcpServer.connect(transport).catch((err: any) => {
+        mcpServer.connect(transport).catch((err: unknown) => {
           console.error("Failed to connect MCP server to transport:", err);
           transport.close();
         });
@@ -153,8 +167,9 @@ export async function handleMcpRequest(
       const body = await request.json();
       await transport.handleMessage(body);
       return new Response("Accepted", { status: 202 });
-    } catch (err: any) {
-      return new Response(`Error handling message: ${err?.message || err}`, { status: 400 });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      return new Response(`Error handling message: ${message}`, { status: 400 });
     }
   }
 

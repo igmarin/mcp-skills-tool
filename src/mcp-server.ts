@@ -6,10 +6,21 @@ import {
   CallToolRequestSchema
 } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
-import { TileConfig } from "./parser.js";
+import { DirectoryConfig } from "./parser.js";
 
+/**
+ * Creates and configures an MCP Server instance that exposes skills as resources and tools.
+ *
+ * Each skill defined in the {@link DirectoryConfig} is registered as:
+ * - A `skill://<name>` resource for direct content retrieval
+ * - Helper tools (`list_skills`, `get_skill`) for clients that prefer tool interaction
+ *
+ * @param config - Validated skill pack configuration
+ * @param fetchSkillContent - Async function that resolves a skill path to its markdown content
+ * @returns A configured MCP {@link Server} instance ready to connect to a transport
+ */
 export function createMcpServer(
-  config: TileConfig,
+  config: DirectoryConfig,
   fetchSkillContent: (path: string) => Promise<string>
 ): Server {
   const server = new Server(
@@ -28,7 +39,7 @@ export function createMcpServer(
   // List all skills as resources
   server.setRequestHandler(ListResourcesRequestSchema, async () => {
     return {
-      resources: Object.entries(config.skills).map(([name, skill]) => ({
+      resources: Object.entries(config.skills).map(([name]) => ({
         uri: `skill://${name}`,
         name: name,
         mimeType: "text/markdown",
@@ -60,8 +71,9 @@ export function createMcpServer(
           },
         ],
       };
-    } catch (error: any) {
-      throw new Error(`Failed to read skill content: ${error?.message || error}`);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`Failed to read skill content: ${message}`);
     }
   });
 
@@ -133,8 +145,9 @@ export function createMcpServer(
             }
           ]
         };
-      } catch (error: any) {
-        throw new Error(`Failed to fetch skill content: ${error?.message || error}`);
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        throw new Error(`Failed to fetch skill content: ${message}`);
       }
     }
 

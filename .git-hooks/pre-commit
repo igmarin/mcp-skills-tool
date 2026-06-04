@@ -1,0 +1,32 @@
+#!/bin/sh
+# Pre-commit hook to run lint, test, and coverage checks
+
+# Exit immediately if any command fails
+set -e
+
+# Resolve the project root directory
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+cd "$REPO_ROOT"
+
+# Enforce Node.js version alignment with CI (20+)
+NODE_MAJOR=$(node -v | cut -d'.' -f1 | tr -d 'v')
+if [ "$NODE_MAJOR" -lt 20 ]; then
+  echo "ERROR: Node.js v20+ is required. Found v$(node -v)."
+  exit 1
+fi
+
+echo "============================================="
+echo "Running Pre-commit Hooks..."
+echo "============================================="
+
+# 1. Run Linter
+echo "Running linter..."
+npm run lint
+
+# 2. Run Tests with Coverage
+echo "Running tests and checking coverage thresholds..."
+npm run test:coverage
+
+echo "============================================="
+echo "All pre-commit checks passed successfully!"
+echo "============================================="

@@ -72,6 +72,18 @@ describe('createMcpServer', () => {
     })).rejects.toThrow('Skill not found');
   });
 
+  it('should throw an error when skill content read fails', async () => {
+    const server = createMcpServer(mockConfig, async () => {
+      throw new Error('File not found');
+    });
+    const readFn = (server as any)._requestHandlers.get('resources/read');
+
+    await expect(readFn({
+      method: 'resources/read',
+      params: { uri: 'skill://hello-world' }
+    })).rejects.toThrow('Failed to read skill content');
+  });
+
   it('should list custom tools', async () => {
     const server = createMcpServer(mockConfig, async () => "");
     const listToolsFn = (server as any)._requestHandlers.get('tools/list');
@@ -110,5 +122,59 @@ describe('createMcpServer', () => {
     });
 
     expect(result.content[0].text).toBe('Skill Content here');
+  });
+
+  it('should throw an error for invalid arguments in get_skill tool', async () => {
+    const server = createMcpServer(mockConfig, async () => "");
+    const callToolFn = (server as any)._requestHandlers.get('tools/call');
+
+    await expect(callToolFn({
+      method: 'tools/call',
+      params: {
+        name: 'get_skill',
+        arguments: {}
+      }
+    })).rejects.toThrow("Invalid arguments");
+  });
+
+  it('should throw an error when get_skill finds unknown skill', async () => {
+    const server = createMcpServer(mockConfig, async () => "");
+    const callToolFn = (server as any)._requestHandlers.get('tools/call');
+
+    await expect(callToolFn({
+      method: 'tools/call',
+      params: {
+        name: 'get_skill',
+        arguments: { name: 'unknown-skill' }
+      }
+    })).rejects.toThrow('Skill not found');
+  });
+
+  it('should throw an error when get_skill content fetch fails', async () => {
+    const server = createMcpServer(mockConfig, async () => {
+      throw new Error('Network error');
+    });
+    const callToolFn = (server as any)._requestHandlers.get('tools/call');
+
+    await expect(callToolFn({
+      method: 'tools/call',
+      params: {
+        name: 'get_skill',
+        arguments: { name: 'hello-world' }
+      }
+    })).rejects.toThrow('Failed to fetch skill content');
+  });
+
+  it('should throw an error for unknown tool', async () => {
+    const server = createMcpServer(mockConfig, async () => "");
+    const callToolFn = (server as any)._requestHandlers.get('tools/call');
+
+    await expect(callToolFn({
+      method: 'tools/call',
+      params: {
+        name: 'unknown_tool',
+        arguments: {}
+      }
+    })).rejects.toThrow('Unknown tool');
   });
 });

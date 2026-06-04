@@ -48,7 +48,7 @@ The project was built using Test-Driven Development (TDD) with Vitest.
 │   └── pre-commit         # Runs lint + test:coverage before every commit
 ├── .github/workflows/
 │   ├── ci.yml             # Lint, test, coverage on push/PR
-│   └── kimi-code-review.yml # Automated AI PR review via PR-Agent + Kimi (OpenRouter)
+│   └── deepseek-review.yml # Automated AI PR review via DeepSeek API
 ├── package.json           # NPM manifest, scripts, dependencies
 ├── tsconfig.json          # TypeScript compiler config (strict, NodeNext, declaration emit)
 ├── vitest.config.ts       # Test config (globals, coverage thresholds at 70%)
@@ -155,7 +155,7 @@ Runs on every push (except `main`) and every PR:
 4. `npm run lint`
 5. `npm run test:coverage`
 
-### `kimi-code-review.yml`
+### `deepseek-review.yml`
 Runs on non-draft PRs (ignoring markdown and workflow-only changes):
 1. Invokes the OpenCode review action (`anomalyco/opencode/github@v1.15.13`) using `deepseek/deepseek-v4-flash`.
 2. The bot reviews for type safety, MCP compliance, test robustness, and security.

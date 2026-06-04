@@ -17,6 +17,10 @@ program
 
 const options = program.opts();
 
+/**
+ * CLI entrypoint that resolves the --config path (local or remote),
+ * parses directory.json, creates the MCP server, and connects it to stdio transport.
+ */
 async function main() {
   const configSource = options.config;
   const isRemote = configSource.startsWith("http://") || configSource.startsWith("https://");

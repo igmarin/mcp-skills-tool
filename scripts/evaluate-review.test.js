@@ -96,6 +96,19 @@ describe('submitPRReview', () => {
     expect(execSyncSpy).toHaveBeenNthCalledWith(2, 'gh pr review 5 --comment -b "[Bot fallback from APPROVE] Looks good"');
   });
 
+  it('should escape shell metacharacters in fallback message', () => {
+    execSyncSpy.mockImplementationOnce(() => {
+      const err = new Error('Command failed: gh pr review 5 --approve');
+      err.stderr = Buffer.from('GraphQL: GitHub Actions is not permitted to approve pull requests. (addPullRequestReview)');
+      throw err;
+    });
+
+    submitPRReview('5', 'APPROVE', 'Hello `world` $HOME "test"');
+
+    expect(execSyncSpy).toHaveBeenCalledTimes(2);
+    expect(execSyncSpy).toHaveBeenNthCalledWith(2, 'gh pr review 5 --comment -b "[Bot fallback from APPROVE] Hello \\`world\\` \\$HOME \\"test\\""');
+  });
+
   it('should rethrow error if approve fails with non-permission error', () => {
     execSyncSpy.mockImplementationOnce(() => {
       throw new Error('Some other random error');
@@ -195,6 +208,32 @@ describe('fetchBotFeedback', () => {
     execSyncSpy.mockImplementation(() => Buffer.from('[]'));
     const result = fetchBotFeedback('owner/repo', '1');
     expect(result).toHaveLength(0);
+  });
+
+  it('should skip comments from deleted users (null user)', () => {
+    execSyncSpy.mockImplementation((cmd) => {
+      if (cmd.includes('/issues/')) {
+        return Buffer.from(JSON.stringify([
+          { body: 'from deleted user', created_at: '2024-01-01T00:00:00Z', user: null },
+          { body: 'valid comment', created_at: '2024-01-02T00:00:00Z', user: { login: 'github-actions[bot]' } }
+        ]));
+      }
+      if (cmd.includes('/pulls/') && cmd.includes('/comments')) {
+        return Buffer.from(JSON.stringify([
+          { body: 'deleted review comment', created_at: '2024-01-03T00:00:00Z', user: null }
+        ]));
+      }
+      if (cmd.includes('/reviews')) {
+        return Buffer.from(JSON.stringify([
+          { body: 'deleted review', submitted_at: '2024-01-04T00:00:00Z', user: null }
+        ]));
+      }
+      return Buffer.from('[]');
+    });
+
+    const result = fetchBotFeedback('owner/repo', '1');
+    expect(result).toHaveLength(1);
+    expect(result[0].body).toBe('valid comment');
   });
 });
 

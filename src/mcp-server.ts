@@ -8,6 +8,17 @@ import {
 import { z } from "zod";
 import { DirectoryConfig } from "./parser.js";
 
+/**
+ * Creates and configures an MCP Server instance that exposes skills as resources and tools.
+ *
+ * Each skill defined in the {@link DirectoryConfig} is registered as:
+ * - A `skill://<name>` resource for direct content retrieval
+ * - Helper tools (`list_skills`, `get_skill`) for clients that prefer tool interaction
+ *
+ * @param config - Validated skill pack configuration
+ * @param fetchSkillContent - Async function that resolves a skill path to its markdown content
+ * @returns A configured MCP {@link Server} instance ready to connect to a transport
+ */
 export function createMcpServer(
   config: DirectoryConfig,
   fetchSkillContent: (path: string) => Promise<string>

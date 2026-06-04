@@ -49,9 +49,9 @@ export function fetchBotFeedback(repo, prNumber) {
   const reviews = fetchGithubApi(`repos/${repo}/pulls/${prNumber}/reviews`);
 
   const allItems = [
-    ...issueComments.map(c => ({ body: c.body, created_at: c.created_at, user: c.user.login })),
-    ...reviewComments.map(c => ({ body: c.body, created_at: c.created_at, user: c.user.login })),
-    ...reviews.map(r => ({ body: r.body, created_at: r.submitted_at, user: r.user.login }))
+    ...issueComments.filter(c => c.user).map(c => ({ body: c.body, created_at: c.created_at, user: c.user.login })),
+    ...reviewComments.filter(c => c.user).map(c => ({ body: c.body, created_at: c.created_at, user: c.user.login })),
+    ...reviews.filter(r => r.user).map(r => ({ body: r.body, created_at: r.submitted_at, user: r.user.login }))
   ];
 
   return allItems
@@ -182,7 +182,11 @@ export function submitPRReview(prNumber, state, message) {
     if (state !== 'COMMENT' && (errorMsg.includes('not permitted') || errorMsg.includes('GraphQL:') || errorMsg.includes('permission'))) {
       console.warn(`Warning: Failed to submit review as ${state} due to permission constraints. Falling back to COMMENT review.`);
       const fallbackMessage = `[Bot fallback from ${state}] ${message}`;
-      const escapedFallback = fallbackMessage.replace(/"/g, '\\"');
+      const escapedFallback = fallbackMessage
+        .replace(/\\/g, '\\\\')
+        .replace(/"/g, '\\"')
+        .replace(/`/g, '\\`')
+        .replace(/\$/g, '\\$');
       const fallbackCommand = `gh pr review ${prNumber} --comment -b "${escapedFallback}"`;
       console.warn(`Submitting fallback review: ${fallbackCommand}`);
       try {

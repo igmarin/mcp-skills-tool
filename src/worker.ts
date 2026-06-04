@@ -71,6 +71,10 @@ export class CloudflareWorkerSseTransport implements Transport {
     }
   }
 
+  /**
+   * Gracefully closes the SSE stream and cleans up internal state.
+   * Invokes the optional {@link onclose} callback if registered.
+   */
   async close(): Promise<void> {
     if (this.isClosed) {
       return;
@@ -98,7 +102,14 @@ export class CloudflareWorkerSseTransport implements Transport {
 export const activeTransports = new Map<string, CloudflareWorkerSseTransport>();
 
 /**
- * Route request handler for Hono/Cloudflare Workers
+ * Handles incoming HTTP requests for an MCP server running over SSE on Cloudflare Workers.
+ *
+ * - `GET`  requests establish a new SSE connection and generate a session ID
+ * - `POST` requests to `/post?sessionId=...` forward JSON-RPC messages to the active transport
+ *
+ * @param request - The incoming web Request object
+ * @param mcpServerCreator - Async factory that builds an MCP {@link Server} instance per connection
+ * @returns An HTTP Response (SSE stream for GET, status ack for POST, or 404)
  */
 export async function handleMcpRequest(
   request: Request,

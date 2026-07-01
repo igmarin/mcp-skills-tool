@@ -52,9 +52,11 @@ The project was built using Test-Driven Development (TDD) with Vitest.
 ├── .git-hooks/
 │   └── pre-commit         # Runs lint + test:coverage before every commit
 ├── .github/workflows/
-│   ├── ci.yml             # Lint, test, coverage on push/PR
+│   ├── ci.yml             # Lint, test, coverage on push/PR + Codecov upload
 │   ├── docker.yml         # Build multi-arch image + push to GHCR on v* tags
 │   └── deepseek-review.yml # Automated AI PR review via DeepSeek API
+├── .github/ISSUE_TEMPLATE/ # Bug report + feature request templates, config.yml
+├── .github/PULL_REQUEST_TEMPLATE.md # PR summary/checklist template
 ├── package.json           # NPM manifest, scripts, dependencies
 ├── tsconfig.json          # TypeScript compiler config (strict, NodeNext, declaration emit)
 ├── vitest.config.ts       # Test config (globals, coverage thresholds at 70%)
@@ -187,6 +189,7 @@ Runs on every push (except `main`) and every PR:
 3. `npm ci`
 4. `npm run lint`
 5. `npm run test:coverage`
+6. Upload coverage to Codecov (`codecov/codecov-action`, SHA-pinned with a `# vX.Y.Z` comment). Runs once on the Node 20 matrix leg, uploads `./coverage/lcov.info`, is non-blocking (`fail_ci_if_error: false`), and uses `token: ${{ secrets.CODECOV_TOKEN }}`. Requires a `CODECOV_TOKEN` repo secret for uploads to succeed (and for the README coverage badge to populate). `vitest.config.ts` emits the `lcov` report via `coverage.reporter: ["text", "lcov"]`.
 
 ### `docker.yml`
 Runs on `v*` tag pushes (same trigger as `release.yml`) and manual `workflow_dispatch`:

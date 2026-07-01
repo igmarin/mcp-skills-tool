@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions & Discussions
+    url: https://github.com/igmarin/mcp-skills-tool/discussions
+    about: Ask questions, share ideas, or discuss usage with the community.
+  - name: Report a security vulnerability
+    url: https://github.com/igmarin/mcp-skills-tool/security/policy
+    about: Please report security issues privately following our security policy.

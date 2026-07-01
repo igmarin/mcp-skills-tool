@@ -7,6 +7,9 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       all: true,
+      // "text" prints the summary in CI logs; "lcov" writes coverage/lcov.info
+      // for Codecov upload.
+      reporter: ["text", "lcov"],
       include: ["src/**/*.ts", "scripts/**/*.js"],
       exclude: ["**/*.test.ts", "**/*.spec.ts", "**/*.test.js", "**/*.spec.js"],
       thresholds: {

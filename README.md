@@ -5,8 +5,8 @@ A versatile Model Context Protocol (MCP) server that reads `directory.json` skil
 It supports running locally via **STDIO** (npm/npx or Docker) and hosting on the edge via **HTTP/SSE** (Cloudflare Workers/Pages Functions).
 
 ## Features
-* **Standard-Compliant Resource Exposure**: Registers each skill defined in `directory.json` as a `skill://<name>` resource.
-* **Helper Tools**: Exposes `list_skills` and `get_skill` tools for clients that prefer tool interaction over resources.
+* **Standard-Compliant Resource Exposure**: Registers each skill defined in `directory.json` as a `skill://<name>` resource, with cursor-based pagination (`nextCursor`) so large packs are served in pages.
+* **Helper Tools**: Exposes `list_skills`, `search_skills`, and `get_skill` tools for clients that prefer tool interaction over resources.
 * **Dual Transport**: Supports stdio transport for local use and a custom SSE stream transport for serverless Cloudflare Workers.
 * **Flexibility**: Works with both local files and remote GitHub configuration paths.
 
@@ -65,6 +65,22 @@ The resource `uri` is always `skill://<recordKey>` regardless of the optional `n
 ```
 
 Both forms parse identically; omitting the optional fields simply falls back to the previous behavior.
+
+---
+
+## Tools & Resources
+
+### Resources
+
+Each skill is exposed as a `skill://<recordKey>` resource (`text/markdown`). `resources/list` is **paginated** per the MCP spec: it returns a fixed-size page of resources plus an opaque `nextCursor` when more remain. Pass that `nextCursor` back on the next `resources/list` call to fetch the following page; the last page omits `nextCursor`. Small packs fit in a single page and never return a cursor, so existing clients are unaffected. An invalid or malformed cursor is rejected with an `InvalidParams` error.
+
+### Tools
+
+| Tool | Arguments | Description |
+|------|-----------|-------------|
+| `list_skills` | _(none)_ | Lists the pack summary and every skill (name, description, tags). Very large packs are capped and end with `... and N more; use search_skills to filter`. |
+| `search_skills` | `query: string` (required), `tags?: string[]` | Case-insensitive substring search of `query` against each skill's record key, `name`, `description`, and `tags`. Returns only matching skills, formatted like `list_skills`; when `tags` is supplied, matches are further restricted to skills carrying at least one of those tags. A query with no matches returns a plain `No skills match "<query>"` message (not an error). |
+| `get_skill` | `name: string` (required) | Returns the markdown content of the named skill. |
 
 ---
 

@@ -91,6 +91,29 @@ describe("createRemoteSkillFetcher", () => {
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
+  it("rejects percent-encoded traversal (%2e%2e) escaping the prefix", async () => {
+    const fetchImpl = response({ ok: true });
+    const fetchSkill = createRemoteSkillFetcher(configUrl, fetchImpl);
+
+    await expect(fetchSkill("%2e%2e/%2e%2e/%2e%2e/%2e%2e/secret.md")).rejects.toThrow(
+      /escapes the config scope/,
+    );
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("rejects literal ../ traversal to a same-origin sibling path", async () => {
+    // Exact scenario raised in review: base .../repo/main/ + ../../etc/passwd.
+    // The URL parser normalizes this to /etc/passwd, which fails the prefix check.
+    const fetchImpl = response({ ok: true });
+    const fetchSkill = createRemoteSkillFetcher(
+      "https://example.com/repo/main/directory.json",
+      fetchImpl,
+    );
+
+    await expect(fetchSkill("../../etc/passwd")).rejects.toThrow(/escapes the config scope/);
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
   it("rejects non-HTTP(S) schemes (file:)", async () => {
     const fetchImpl = response({ ok: true });
     const fetchSkill = createRemoteSkillFetcher(configUrl, fetchImpl);

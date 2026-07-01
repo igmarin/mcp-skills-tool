@@ -59,6 +59,10 @@ export function createRemoteSkillFetcher(
     if (target.protocol !== "http:" && target.protocol !== "https:") {
       throw new Error(`Unsupported skill URL scheme: ${target.protocol}`);
     }
+    // `target.pathname` is already normalized by the WHATWG URL parser: both
+    // literal (`../`) and percent-encoded (`%2e%2e`) dot-segments are decoded
+    // and collapsed before this point, so confining by origin + directory
+    // prefix is sufficient to prevent traversal. (Proven in the tests.)
     if (target.origin !== base.origin || !target.pathname.startsWith(base.pathname)) {
       throw new Error(`Skill URL escapes the config scope: ${target.href}`);
     }

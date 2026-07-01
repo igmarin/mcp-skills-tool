@@ -171,6 +171,8 @@ npm run test:watch
 
 Release notes live in [CHANGELOG.md](CHANGELOG.md). This project follows [Semantic Versioning](https://semver.org/); the changelog header defines the public API covered by the version contract.
 
+Releases are automated: pushing a `vX.Y.Z` tag triggers the [`release.yml`](.github/workflows/release.yml) workflow, which runs the full quality gate, builds, and publishes to npm with [provenance](https://docs.npmjs.com/generating-provenance-statements). See the [release process in CONTRIBUTING.md](CONTRIBUTING.md#releases--versioning) for the maintainer flow and the required `NPM_TOKEN` secret.
+
 ---
 
 ## Integration with Cloudflare Workers & Hono

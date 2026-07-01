@@ -113,7 +113,20 @@ node dist/index.js --config https://raw.githubusercontent.com/igmarin/rails-agen
 ```
 
 ### Running via Docker
-You can package this server as a container to run in environments like Smithery or local Docker setups:
+You can run this server as a container in environments like Smithery or a local Docker setup. The image is hardened: it runs as the unprivileged `node` user (never root) and ships a `HEALTHCHECK` that verifies the entrypoint is runnable.
+
+**Pull the published image** (multi-arch: `linux/amd64` + `linux/arm64`) from GitHub Container Registry:
+
+```bash
+# Run the published image (mounting the local skills directory)
+docker run -i --rm \
+  -v /absolute/path/to/skills-repo:/skills \
+  ghcr.io/igmarin/mcp-skills-tool --config /skills/directory.json
+```
+
+Images are published to `ghcr.io/igmarin/mcp-skills-tool` on every version tag (`v*`); use `:latest` or pin a version tag (e.g. `:1.0.0`).
+
+**Or build the image locally:**
 
 ```bash
 # Build the image

@@ -29,6 +29,7 @@ Initial public release.
 - Dual transport: stdio (CLI via `mcp-skills-tool --config <path|url>`, runnable through Node or Docker) and an edge/serverless transport for Cloudflare Workers / Pages Functions.
 - Local and remote (`http(s)://`) `directory.json` support, with relative resolution of skill paths against the config location.
 - Zod validation of the `directory.json` configuration at the input boundary.
+- Graceful CLI lifecycle: SIGINT/SIGTERM close the server and exit cleanly, and expected startup failures (missing/invalid config) print a concise message with a non-zero exit instead of a raw stack trace.
 - Packaging that publishes the compiled `dist/` only, a `tsc --noEmit` type-check gate in CI and the pre-commit hook, and an MIT license.
 
 [1.0.0]: https://github.com/igmarin/mcp-skills-tool/releases/tag/v1.0.0

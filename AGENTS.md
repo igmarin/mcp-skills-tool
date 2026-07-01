@@ -114,7 +114,7 @@ External data (e.g. `directory.json`) must be validated with Zod schemas before 
 - **Test files:** `src/**/*.test.ts`, `src/**/*.spec.ts`, `scripts/**/*.test.ts`, `scripts/**/*.spec.ts`.
 - **Coverage provider:** v8.
 - **Coverage thresholds (all 70%):** statements, branches, functions, lines.
-- **Excluded from coverage:** `src/index.ts`, `src/worker.ts`, `**/*.test.ts`, `**/*.spec.ts`.
+- **Excluded from coverage:** `src/worker.ts`, `**/*.test.ts`, `**/*.spec.ts`.
 
 Tests for MCP handlers use internal `_requestHandlers` access on the `Server` instance to invoke handlers directly. When mocking external dependencies, prefer injecting mock `fetchSkillContent` functions into `createMcpServer`.
 
@@ -134,8 +134,15 @@ Exports `createMcpServer(config, fetchSkillContent)` which returns an MCP `Serve
 - **Resources:** `skill://<name>` URIs mapped to skill markdown files.
 - **Tools:** `list_skills` and `get_skill` for clients that prefer tool interaction.
 
+### `src/cli.ts`
+Bootstrap and lifecycle helpers shared by the entrypoint, all dependency-injectable for testing:
+- `loadConfig(source, deps?)` — resolves a local path or `http(s)://` URL, validates `directory.json`, and returns `{ config, fetchSkillContent }`. Expected failures are wrapped in `CliError`.
+- `reportFatalError(error, log?)` — prints a `CliError` concisely (stack for unexpected errors) and returns exit code 1.
+- `installSignalHandlers` / `shutdown` — SIGINT/SIGTERM graceful shutdown.
+- `runCli(deps?)` — the CLI bootstrap: parses `--config` (Commander), calls `loadConfig` → `createMcpServer` → `new StdioServerTransport()` → `server.connect` → `installSignalHandlers`, then logs the startup line to stderr. Every external constructor/function is overridable via `RunCliDeps`, so the entrypoint wiring is unit-tested without real stdio or a real server.
+
 ### `src/index.ts`
-CLI entrypoint using Commander. Parses `--config <path|url>`, resolves local or remote paths, fetches `directory.json`, builds the MCP server, and connects it to `StdioServerTransport`.
+Thin CLI entrypoint shim (with the `#!/usr/bin/env node` shebang): calls `runCli()` and maps a rejection to a process exit code via `reportFatalError`. All wiring lives in `runCli` (`src/cli.ts`).
 
 ### `src/worker.ts`
 Exports `handleMcpRequest(request, mcpServerCreator)` for running the server on Cloudflare Workers/Pages Functions (or any Web Standard runtime) over the modern web-standard **Streamable HTTP** transport (`WebStandardStreamableHTTPServerTransport` from `@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js`). A single endpoint handles the full session lifecycle (initialize / message / `DELETE` teardown) keyed by the `mcp-session-id` header, and CORS headers are added to every response. Sessions are stored in a module-private in-memory `Map<string, WebStandardStreamableHTTPServerTransport>`. For production scaling, the code comments suggest migrating to Durable Objects.

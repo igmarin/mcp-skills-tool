@@ -2,7 +2,16 @@ import { describe, it, expect, vi } from "vitest";
 import * as fsp from "node:fs/promises";
 import * as os from "node:os";
 import * as nodePath from "node:path";
-import { loadConfig, reportFatalError, shutdown, installSignalHandlers, CliError } from "./cli.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import {
+  loadConfig,
+  reportFatalError,
+  shutdown,
+  installSignalHandlers,
+  runCli,
+  RunCliDeps,
+  CliError,
+} from "./cli.js";
 
 const validConfig = {
   name: "test-skills",
@@ -255,5 +264,143 @@ describe("installSignalHandlers", () => {
     handlers.get("SIGTERM")!();
     await vi.waitFor(() => expect(exit).toHaveBeenCalledWith(0));
     expect(close).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("runCli", () => {
+  const argvFor = (config: string) => ["node", "mcp-skills-tool", "--config", config];
+
+  it("wires config → server → transport → signals for a local --config (all deps injected)", async () => {
+    const fetchSkillContent = vi.fn(async () => "# content");
+    const loadConfigImpl = vi.fn(async () => ({ config: validConfig, fetchSkillContent }));
+    const connect = vi.fn(async (_transport: unknown) => {});
+    const close = vi.fn(async () => {});
+    const server = { connect, close };
+    const createServer = vi.fn((_config: unknown, _fetch: unknown) => server);
+    const transport = { id: "fake-transport" };
+    const createTransport = vi.fn(() => transport);
+    const installSignals = vi.fn();
+    const logs: string[] = [];
+
+    await runCli({
+      argv: argvFor("/skills/directory.json"),
+      loadConfigImpl: loadConfigImpl as unknown as typeof loadConfig,
+      createServer: createServer as unknown as RunCliDeps["createServer"],
+      createTransport: createTransport as unknown as RunCliDeps["createTransport"],
+      installSignals: installSignals as unknown as RunCliDeps["installSignals"],
+      log: (m) => logs.push(m),
+    });
+
+    expect(loadConfigImpl).toHaveBeenCalledWith("/skills/directory.json");
+    expect(createServer).toHaveBeenCalledWith(validConfig, fetchSkillContent);
+    expect(connect).toHaveBeenCalledWith(transport);
+    expect(installSignals).toHaveBeenCalledWith(server);
+    expect(logs).toEqual(['MCP Server "test-skills" (v1.0.0) started on stdio transport.']);
+  });
+
+  it("falls back to the real loadConfig and a real stdio transport for a local config", async () => {
+    const dir = await fsp.mkdtemp(nodePath.join(os.tmpdir(), "mcp-runcli-test-"));
+    try {
+      await fsp.writeFile(nodePath.join(dir, "directory.json"), JSON.stringify(validConfig));
+      await fsp.mkdir(nodePath.join(dir, "skills", "hello-world"), { recursive: true });
+      await fsp.writeFile(
+        nodePath.join(dir, "skills", "hello-world", "SKILL.md"),
+        "# real skill content",
+      );
+
+      const connect = vi.fn(async (_transport: unknown) => {});
+      const close = vi.fn(async () => {});
+      const server = { connect, close };
+      const createServer = vi.fn((_config: unknown, _fetch: unknown) => server);
+      const installSignals = vi.fn();
+
+      // loadConfigImpl and createTransport are left to their real defaults so
+      // the production wiring (real loadConfig + real StdioServerTransport) is
+      // exercised. createServer/installSignals stay mocked to avoid a real
+      // server ever binding to stdin.
+      await runCli({
+        argv: argvFor(nodePath.join(dir, "directory.json")),
+        createServer: createServer as unknown as RunCliDeps["createServer"],
+        installSignals: installSignals as unknown as RunCliDeps["installSignals"],
+        log: () => {},
+      });
+
+      expect(createServer).toHaveBeenCalledTimes(1);
+      const [passedConfig, passedFetcher] = createServer.mock.calls[0]!;
+      expect((passedConfig as { name: string }).name).toBe("test-skills");
+
+      // The default createTransport built and passed a real StdioServerTransport.
+      expect(connect).toHaveBeenCalledTimes(1);
+      const [passedTransport] = connect.mock.calls[0]!;
+      expect(passedTransport).toBeInstanceOf(StdioServerTransport);
+
+      // The real fetcher from loadConfig resolves skill content from the temp dir.
+      const content = await (passedFetcher as (p: string) => Promise<string>)(
+        "skills/hello-world/SKILL.md",
+      );
+      expect(content).toBe("# real skill content");
+      expect(installSignals).toHaveBeenCalledWith(server);
+    } finally {
+      await fsp.rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("defaults to console.error logging and installSignalHandlers when not injected", async () => {
+    const server = { connect: vi.fn(async () => {}), close: vi.fn(async () => {}) };
+    const sigBefore = {
+      SIGINT: process.listeners("SIGINT"),
+      SIGTERM: process.listeners("SIGTERM"),
+    };
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      await runCli({
+        argv: argvFor("/skills/directory.json"),
+        loadConfigImpl: (async () => ({
+          config: validConfig,
+          fetchSkillContent: async () => "# c",
+        })) as unknown as typeof loadConfig,
+        createServer: (() => server) as unknown as RunCliDeps["createServer"],
+        createTransport: (() => ({ id: "fake" })) as unknown as RunCliDeps["createTransport"],
+      });
+
+      // Default installSignalHandlers registered one-shot SIGINT/SIGTERM handlers.
+      const newSigint = process.listeners("SIGINT").filter((l) => !sigBefore.SIGINT.includes(l));
+      const newSigterm = process.listeners("SIGTERM").filter((l) => !sigBefore.SIGTERM.includes(l));
+      expect(newSigint.length).toBeGreaterThanOrEqual(1);
+      expect(newSigterm.length).toBeGreaterThanOrEqual(1);
+
+      // Default logger wrote the startup line to stderr (console.error).
+      expect(errorSpy).toHaveBeenCalledWith(
+        'MCP Server "test-skills" (v1.0.0) started on stdio transport.',
+      );
+    } finally {
+      errorSpy.mockRestore();
+      for (const sig of ["SIGINT", "SIGTERM"] as const) {
+        for (const listener of process.listeners(sig)) {
+          if (!sigBefore[sig].includes(listener)) {
+            process.removeListener(sig, listener as (...args: unknown[]) => void);
+          }
+        }
+      }
+    }
+  });
+
+  it("propagates a CliError from loadConfig (rejects) so the shim can map the exit code", async () => {
+    const promise = runCli({
+      argv: argvFor("/skills/directory.json"),
+      loadConfigImpl: (async () => {
+        throw new CliError("Config file not found or unreadable: /skills/directory.json");
+      }) as unknown as typeof loadConfig,
+      createServer: (() => ({
+        connect: vi.fn(),
+        close: vi.fn(),
+      })) as unknown as RunCliDeps["createServer"],
+      createTransport: (() => ({})) as unknown as RunCliDeps["createTransport"],
+      installSignals: (() => {}) as unknown as RunCliDeps["installSignals"],
+      log: () => {},
+    });
+
+    await expect(promise).rejects.toBeInstanceOf(CliError);
+    await expect(promise).rejects.toThrow("Config file not found or unreadable");
   });
 });

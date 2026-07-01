@@ -1,8 +1,12 @@
 import * as fs from "fs/promises";
 import * as path from "path";
+import { Command } from "commander";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { z } from "zod";
 import { parseDirectoryConfig, DirectoryConfig } from "./parser.js";
 import { createLocalSkillFetcher, createRemoteSkillFetcher, SkillFetcher } from "./skill-source.js";
+import { createMcpServer } from "./mcp-server.js";
 
 /**
  * Signals an expected, user-facing failure — a bad config path, invalid JSON,
@@ -191,4 +195,67 @@ export function installSignalHandlers(server: ClosableServer, deps: SignalDeps =
       void shutdown(server, signal, deps);
     });
   }
+}
+
+/**
+ * A server that can be connected to a transport and later closed. Both
+ * {@link createMcpServer}'s `Server` and test doubles satisfy this shape.
+ */
+export interface ConnectableServer extends ClosableServer {
+  connect(transport: Transport): Promise<void>;
+}
+
+/**
+ * Injectable dependencies for {@link runCli}. Every external constructor and
+ * function used during bootstrap is overridable so the entrypoint can be
+ * exercised without real stdio, a real server, or real signal handlers.
+ */
+export interface RunCliDeps {
+  /** Argument vector to parse. Defaults to `process.argv`. */
+  argv?: string[];
+  /** Builds the MCP server from a validated config + fetcher. Defaults to {@link createMcpServer}. */
+  createServer?: (config: DirectoryConfig, fetchSkillContent: SkillFetcher) => ConnectableServer;
+  /** Builds the transport the server connects to. Defaults to a `StdioServerTransport`. */
+  createTransport?: () => Transport;
+  /** Installs signal handlers on the server. Defaults to {@link installSignalHandlers}. */
+  installSignals?: (server: ConnectableServer) => void;
+  /** Config loader. Defaults to {@link loadConfig}. */
+  loadConfigImpl?: typeof loadConfig;
+  /** Informational logger (stderr). Defaults to `console.error`. */
+  log?: (message: string) => void;
+}
+
+/**
+ * CLI bootstrap: parses `--config`, loads and validates the config source,
+ * creates the MCP server, connects it to the stdio transport, installs
+ * SIGINT/SIGTERM handlers for a clean shutdown, and logs the startup line to
+ * stderr. Extracted from the `index.ts` shim so the wiring is unit-testable via
+ * {@link RunCliDeps} without touching real stdio or a real server.
+ */
+export async function runCli(deps: RunCliDeps = {}): Promise<void> {
+  const argv = deps.argv ?? process.argv;
+  const createServer = deps.createServer ?? createMcpServer;
+  const createTransport = deps.createTransport ?? (() => new StdioServerTransport());
+  const installSignals = deps.installSignals ?? installSignalHandlers;
+  const loadConfigImpl = deps.loadConfigImpl ?? loadConfig;
+  const log = deps.log ?? ((message: string) => console.error(message));
+
+  const program = new Command();
+  program
+    .name("mcp-skills-tool")
+    .description("MCP Server to expose agent skills defined in directory.json")
+    .version("1.0.0")
+    .requiredOption("-c, --config <path>", "Path or URL to directory.json config file")
+    .parse(argv);
+
+  const options = program.opts<{ config: string }>();
+
+  const { config, fetchSkillContent } = await loadConfigImpl(options.config);
+  const server = createServer(config, fetchSkillContent);
+
+  const transport = createTransport();
+  await server.connect(transport);
+  installSignals(server);
+
+  log(`MCP Server "${config.name}" (v${config.version}) started on stdio transport.`);
 }

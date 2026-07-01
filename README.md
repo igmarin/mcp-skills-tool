@@ -15,7 +15,7 @@ It supports running locally via **STDIO** (npm/npx or Docker) and hosting on the
 ## Local Usage
 
 ### Running via npx / Node.js
-Ensure you have Node.js 20+ installed. To start the MCP server locally reading a local `directory.json`:
+Ensure you have Node.js 20+ installed (an `.nvmrc` / `.node-version` pinned to `20` is provided — run `nvm use` to match). To start the MCP server locally reading a local `directory.json`:
 
 ```bash
 # Clone the repository

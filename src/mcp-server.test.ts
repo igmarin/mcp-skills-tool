@@ -160,6 +160,21 @@ describe("createMcpServer", () => {
     ).rejects.toThrow("Skill not found");
   });
 
+  it("should not resolve inherited object members like __proto__ as skills", async () => {
+    const server = createMcpServer(mockConfig, async () => "");
+    const callToolFn = (server as any)._requestHandlers.get("tools/call");
+
+    await expect(
+      callToolFn({
+        method: "tools/call",
+        params: {
+          name: "get_skill",
+          arguments: { name: "__proto__" },
+        },
+      }),
+    ).rejects.toThrow("Skill not found");
+  });
+
   it("should throw an error when get_skill content fetch fails", async () => {
     const server = createMcpServer(mockConfig, async () => {
       throw new Error("Network error");

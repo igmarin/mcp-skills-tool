@@ -5,6 +5,7 @@ import * as path from "path";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { parseDirectoryConfig } from "./parser.js";
 import { createMcpServer } from "./mcp-server.js";
+import { createLocalSkillFetcher, createRemoteSkillFetcher, SkillFetcher } from "./skill-source.js";
 
 const program = new Command();
 
@@ -26,7 +27,7 @@ async function main() {
   const isRemote = configSource.startsWith("http://") || configSource.startsWith("https://");
 
   let configJson: unknown;
-  let fetchSkillContent: (skillPath: string) => Promise<string>;
+  let fetchSkillContent: SkillFetcher;
 
   if (isRemote) {
     // Remote HTTP/HTTPS configuration
@@ -36,18 +37,7 @@ async function main() {
       throw new Error(`Failed to fetch config from ${configSource}: ${response.statusText}`);
     }
     configJson = await response.json();
-
-    const configUrl = new URL(configSource);
-    const baseUrl = new URL(".", configUrl).toString();
-
-    fetchSkillContent = async (skillPath: string) => {
-      const targetUrl = new URL(skillPath, baseUrl).toString();
-      const res = await fetch(targetUrl);
-      if (!res.ok) {
-        throw new Error(`Failed to fetch skill content from ${targetUrl}: ${res.statusText}`);
-      }
-      return res.text();
-    };
+    fetchSkillContent = createRemoteSkillFetcher(configSource);
   } else {
     // Local file configuration
     const absoluteConfigPath = path.resolve(configSource);
@@ -56,11 +46,7 @@ async function main() {
 
     const fileContent = await fs.readFile(absoluteConfigPath, "utf-8");
     configJson = JSON.parse(fileContent);
-
-    fetchSkillContent = async (skillPath: string) => {
-      const absoluteSkillPath = path.resolve(configDir, skillPath);
-      return fs.readFile(absoluteSkillPath, "utf-8");
-    };
+    fetchSkillContent = createLocalSkillFetcher(configDir);
   }
 
   const config = parseDirectoryConfig(configJson);

@@ -19,11 +19,15 @@ echo "============================================="
 echo "Running Pre-commit Hooks..."
 echo "============================================="
 
-# 1. Run Linter
+# 1. Type Check
+echo "Running type check..."
+npm run typecheck
+
+# 2. Run Linter
 echo "Running linter..."
 npm run lint
 
-# 2. Run Tests with Coverage
+# 3. Run Tests with Coverage
 echo "Running tests and checking coverage thresholds..."
 npm run test:coverage
 

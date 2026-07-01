@@ -44,7 +44,18 @@ npm run setup-hooks   # installs the pre-commit hook (typecheck → format → l
 
 ## Releases & versioning
 
-This project follows [Semantic Versioning](https://semver.org/); the public API covered by the version contract is defined in [CHANGELOG.md](CHANGELOG.md). Maintainers cut releases by updating the changelog and tagging `vX.Y.Z`; publishing runs `prepublishOnly` (`npm run build`) so only compiled `dist/` is shipped.
+This project follows [Semantic Versioning](https://semver.org/); the public API covered by the version contract is defined in [CHANGELOG.md](CHANGELOG.md).
+
+Publishing to npm is automated by the [`release.yml`](.github/workflows/release.yml) workflow, which triggers on version tags (`v*`). To cut a release:
+
+1. Bump `"version"` in `package.json` to the new `X.Y.Z`.
+2. Update [CHANGELOG.md](CHANGELOG.md): rename the `Unreleased` heading to the version, add its release date, and add a fresh `Unreleased` section if needed.
+3. Commit both changes (e.g. `chore(release): vX.Y.Z`).
+4. Tag and push: `git tag vX.Y.Z && git push origin main --tags`.
+
+The `release.yml` workflow then checks the tag matches `package.json`, runs the full quality gate (`lint` → `typecheck` → `test:coverage`), builds, and runs `npm publish --provenance --access public` — so the published tarball carries a signed [npm provenance](https://docs.npmjs.com/generating-provenance-statements) attestation. Only the compiled `dist/` and `CHANGELOG.md` are shipped (per the `files` allowlist in `package.json`; `prepublishOnly` also runs `npm run build` as a safety net).
+
+Publishing requires an `NPM_TOKEN` repository secret (an npm automation/granular token with publish rights for `@igmarin/mcp-skills-tool`). Every pull request also runs [`publish-dryrun.yml`](.github/workflows/publish-dryrun.yml), which does `npm publish --dry-run` to surface packaging regressions without publishing.
 
 ## Reporting security issues
 

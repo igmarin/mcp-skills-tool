@@ -13,23 +13,60 @@ It supports running locally via **STDIO** (npm/npx or Docker) and hosting on the
 
 ---
 
-## Configuration (`directory.json`)
+## `directory.json` Schema Reference
 
-A skill pack is described by a `directory.json` file. The top-level fields (`name`, `version`, `summary`) describe the pack, and `skills` maps a record key to a skill entry. Each skill entry requires only a `path`; the remaining per-skill fields are **optional metadata** that lets agents understand a skill without fetching its content.
+A skill pack is described by a single `directory.json` file. The top-level fields (`name`, `version`, `summary`) describe the pack, and `skills` maps a **record key** to a skill entry. Each skill entry requires only a `path`; the remaining per-skill fields are **optional metadata** that lets agents understand a skill without fetching its content.
 
-| Field | Location | Required | Description |
-|-------|----------|----------|-------------|
-| `name` | top level | yes | Skill pack name (used as the MCP server name). |
-| `version` | top level | yes | Skill pack version (used as the MCP server version). |
-| `summary` | top level | yes | One-line pack summary; prepended to the `list_skills` output. |
-| `skills` | top level | yes | Record of `<recordKey>` → skill entry. |
-| `path` | skill entry | yes | Path to the skill's markdown, resolved relative to the config. |
-| `name` | skill entry | no | Display name; used for the resource `name` (falls back to the record key). |
-| `description` | skill entry | no | Human-readable description; used for the resource `description` and in `list_skills` (falls back to `Agent skill: <recordKey>`). |
-| `tags` | skill entry | no | `string[]` of tags; surfaced in `list_skills`. |
-| `version` | skill entry | no | Per-skill version string. |
+The file is validated with [Zod](https://zod.dev/) at load time (see `src/parser.ts`): unknown keys are stripped, and a schema violation aborts startup with a concise error (see [Troubleshooting](#troubleshooting)).
 
-The resource `uri` is always `skill://<recordKey>` regardless of the optional `name`. Unknown keys are ignored.
+### Top-level fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | `string` | yes | Skill pack name; used as the MCP server name. |
+| `version` | `string` | yes | Skill pack version; used as the MCP server version. |
+| `summary` | `string` | yes | One-line pack summary; prepended to the `list_skills` output. |
+| `skills` | `object` | yes | Map of `<recordKey>` → skill entry (see below). |
+
+### Skill entry (each value under `skills`)
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `path` | `string` | yes | Path to the skill's markdown, resolved relative to the config location. Local packs confine it to the config's directory; remote packs confine it to the config URL's origin + directory prefix. |
+| `name` | `string` | no | Display name; used for the resource `name`, the `list_skills` line, and the prompt label (falls back to the record key). |
+| `description` | `string` | no | Human-readable description; used for the resource `description`, `list_skills`, and the prompt description (falls back to `Agent skill: <recordKey>`). |
+| `tags` | `string[]` | no | Tags; surfaced in `list_skills` and searchable via `search_skills`. |
+| `version` | `string` | no | Per-skill version string. |
+
+The **record key** (the object key under `skills`) is the skill's identity: the resource `uri` is always `skill://<recordKey>`, the prompt name is `<recordKey>`, and the `get_skill` tool takes `<recordKey>` as its `name`. The optional `name` field only changes how the skill is displayed. Unknown keys are ignored.
+
+### Annotated example
+
+This is the runnable pack shipped in this repo at [`examples/skills-pack/directory.json`](examples/skills-pack/directory.json) — point any client at it to try the server immediately (see [MCP Client Setup](#mcp-client-setup)). The `//` comments below are illustrative only; JSON does not support comments, so copy the real file rather than this annotated view.
+
+```json
+{
+  "name": "example-skills",            // pack name → MCP server name
+  "version": "1.0.0",                  // pack version → MCP server version
+  "summary": "A minimal example skill pack for mcp-skills-tool.",
+  "skills": {
+    "hello-world": {                   // record key → skill://hello-world
+      "path": "hello-world/SKILL.md",  // resolved relative to directory.json
+      "name": "Hello World",           // optional display name
+      "description": "A tiny starter skill that greets the user and shows how a skill is structured.",
+      "tags": ["example", "starter"],  // optional, searchable via search_skills
+      "version": "1.0.0"               // optional per-skill version
+    },
+    "code-review": {
+      "path": "code-review/SKILL.md",
+      "name": "Code Review",
+      "description": "Reviews a diff for correctness, clarity, and style before it is merged.",
+      "tags": ["quality", "review"],
+      "version": "1.0.0"
+    }
+  }
+}
+```
 
 **Minimal (path-only) — still fully supported:**
 
@@ -40,32 +77,13 @@ The resource `uri` is always `skill://<recordKey>` regardless of the optional `n
   "summary": "An example skill pack",
   "skills": {
     "hello-world": {
-      "path": "skills/hello-world/SKILL.md"
+      "path": "hello-world/SKILL.md"
     }
   }
 }
 ```
 
-**Enriched with per-skill metadata:**
-
-```json
-{
-  "name": "example-skills",
-  "version": "1.0.0",
-  "summary": "An example skill pack",
-  "skills": {
-    "code-review": {
-      "path": "skills/code-review/SKILL.md",
-      "name": "Code Review",
-      "description": "Reviews a diff for correctness and style.",
-      "tags": ["quality", "review"],
-      "version": "2.1.0"
-    }
-  }
-}
-```
-
-Both forms parse identically; omitting the optional fields simply falls back to the previous behavior.
+Both forms parse identically; omitting the optional fields simply falls back to the record-key-based defaults.
 
 ---
 
@@ -111,6 +129,14 @@ Or run it directly using a remote `directory.json` configuration on GitHub:
 ```bash
 node dist/index.js --config https://raw.githubusercontent.com/igmarin/rails-agent-skills/main/directory.json
 ```
+
+**Try the bundled example pack.** This repo ships a small, runnable pack at [`examples/skills-pack/`](examples/skills-pack) (see the [Schema Reference](#directoryjson-schema-reference)). After `npm run build`, point the CLI at it:
+
+```bash
+node dist/index.js --config examples/skills-pack/directory.json
+```
+
+The server prints `MCP Server "example-skills" (v1.0.0) started on stdio transport.` to stderr and then waits for a client on stdio. Use this same `directory.json` in the client configs below to confirm your setup end to end.
 
 ### Running via Docker
 You can run this server as a container in environments like Smithery or a local Docker setup. The image is hardened: it runs as the unprivileged `node` user (never root) and ships a `HEALTHCHECK` that verifies the entrypoint is runnable.
@@ -158,6 +184,160 @@ node dist/index.js --config /path/to/directory.json --cache-ttl 600
 # Disable caching (always fetch fresh)
 node dist/index.js --config /path/to/directory.json --no-cache
 ```
+
+---
+
+## MCP Client Setup
+
+`mcp-skills-tool` runs as a local **stdio** MCP server, so any MCP-capable client launches it by spawning a command. There are two invocations to choose from:
+
+- **Published (recommended):** `npx -y @igmarin/mcp-skills-tool --config <path-or-url>` — no clone or build; npm fetches the package on first run.
+- **Local dev:** `node /absolute/path/to/mcp-skills-tool/dist/index.js --config <path-or-url>` — after `npm install && npm run build` in a clone.
+
+`<path-or-url>` is either an absolute path to a local `directory.json` or an `http(s)://` URL. The snippets below point at the bundled example pack so you can verify the connection right away — swap in your own pack once it works:
+
+```
+/absolute/path/to/mcp-skills-tool/examples/skills-pack/directory.json
+```
+
+> **Use absolute paths in client configs.** Editors launch the server with an unpredictable working directory, so a relative `--config` path may fail to resolve (`Config file not found or unreadable` — see [Troubleshooting](#troubleshooting)).
+
+### Claude Desktop
+
+Edit `claude_desktop_config.json` (macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`, Windows: `%APPDATA%\Claude\claude_desktop_config.json`), add an entry under `mcpServers`, then restart Claude Desktop:
+
+```json
+{
+  "mcpServers": {
+    "skills": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@igmarin/mcp-skills-tool",
+        "--config",
+        "/absolute/path/to/mcp-skills-tool/examples/skills-pack/directory.json"
+      ]
+    }
+  }
+}
+```
+
+Local-dev variant (using a built `dist/`):
+
+```json
+{
+  "mcpServers": {
+    "skills": {
+      "command": "node",
+      "args": [
+        "/absolute/path/to/mcp-skills-tool/dist/index.js",
+        "--config",
+        "/absolute/path/to/mcp-skills-tool/examples/skills-pack/directory.json"
+      ]
+    }
+  }
+}
+```
+
+### Cursor
+
+Create `.cursor/mcp.json` in your project (or `~/.cursor/mcp.json` for all projects), then restart Cursor. Cursor uses the same `mcpServers` shape as Claude Desktop, and `--config` accepts a local path or a remote URL:
+
+```json
+{
+  "mcpServers": {
+    "skills": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@igmarin/mcp-skills-tool",
+        "--config",
+        "https://raw.githubusercontent.com/igmarin/rails-agent-skills/main/directory.json"
+      ]
+    }
+  }
+}
+```
+
+### VS Code (GitHub Copilot)
+
+Create `.vscode/mcp.json` in your workspace (or nest the same block under a top-level `mcp` key in user `settings.json`). VS Code uses a top-level `servers` object and requires an explicit `"type": "stdio"`:
+
+```json
+{
+  "servers": {
+    "skills": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@igmarin/mcp-skills-tool",
+        "--config",
+        "/absolute/path/to/mcp-skills-tool/examples/skills-pack/directory.json"
+      ]
+    }
+  }
+}
+```
+
+### Windsurf
+
+Edit `~/.codeium/windsurf/mcp_config.json` (Windows: `%USERPROFILE%\.codeium\windsurf\mcp_config.json`), then fully quit and reopen Windsurf. Windsurf uses the `mcpServers` shape:
+
+```json
+{
+  "mcpServers": {
+    "skills": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@igmarin/mcp-skills-tool",
+        "--config",
+        "/absolute/path/to/mcp-skills-tool/examples/skills-pack/directory.json"
+      ]
+    }
+  }
+}
+```
+
+### Passing extra flags
+
+Any CLI flag goes in `args` after `--config`. For example, to raise the cache TTL (or use `--no-cache`):
+
+```json
+"args": [
+  "-y",
+  "@igmarin/mcp-skills-tool",
+  "--config",
+  "/absolute/path/to/directory.json",
+  "--cache-ttl",
+  "600"
+]
+```
+
+After editing a client's config, restart the client so it relaunches the server. Once connected, ask the agent to run `list_skills` (or open the `skill://hello-world` resource) to confirm the pack loaded.
+
+---
+
+## Troubleshooting
+
+Expected startup failures print a concise `Error: <message>` line to **stderr** and exit with code `1` (unexpected internal errors keep a full stack trace instead). Skill-read failures surface at request time. The table maps the message you'll see to its cause and fix.
+
+| Message | Cause | Fix |
+|---------|-------|-----|
+| `Config file not found or unreadable: <abs-path>` | The local `--config` path is wrong or unreadable. The path is shown resolved to **absolute** — check it matches what you expect. | Confirm the file exists (`ls <path>`). In client configs use an absolute path, since the launcher's working directory is unpredictable. |
+| `Config file is not valid JSON: <abs-path>` | The local `directory.json` has a JSON syntax error (trailing comma, missing quote, a comment). | Validate it, e.g. `node -e "JSON.parse(require('fs').readFileSync('<path>','utf8'))"`. JSON has no comments. |
+| `Config at <url> is not valid JSON.` | The remote config URL returned a non-JSON body (often an HTML error or login page). | Point `--config` at the **raw** JSON (e.g. a `raw.githubusercontent.com` URL), not a repo web page. |
+| `Could not reach config URL: <url>` | The remote config URL could not be fetched (DNS, offline, TLS). | Check the URL and your network, e.g. `curl -I <url>`. |
+| `Failed to fetch config from <url>: <status> <text>` | The server responded, but not with `2xx` (e.g. `404`, `403`). | Fix the URL/permissions; a private repo's raw URL must be public or served from an authenticated mirror. |
+| `Invalid directory.json config:` followed by `- <field>: <issue>` lines | The JSON parsed but failed schema validation — e.g. a missing top-level `name`/`version`/`summary`, a `skills` value that isn't an object, or a skill missing its `path`. | Fix the listed fields against the [Schema Reference](#directoryjson-schema-reference); each line names the offending path. |
+| `Invalid --cache-ttl value: <value> ...` | `--cache-ttl` got a non-numeric or negative value. | Pass a non-negative number of seconds, e.g. `--cache-ttl 600`. |
+| `Skill path escapes the skills directory: <path>` (at read time) | A local skill `path` resolves outside the config's directory (via `../` or an absolute path); skill content is confined to that directory. | Make every skill `path` relative and inside the pack directory, as in the example pack. |
+| `Skill URL escapes the config scope: <url>` (at read time) | For a remote pack, a skill `path` resolves outside the config URL's origin + directory prefix. | Keep skill files under the same directory as the remote `directory.json`. |
+| `Unsupported skill URL scheme: <scheme>` (at read time) | A remote skill `path` resolved to a non-HTTP(S) URL. | Use `http(s)` skill paths for remote packs. |
+| `Failed to fetch skill content from <url>: <text>` (at read time) | A remote skill file returned a non-OK response. | Verify the skill file exists at the expected URL and is publicly reachable. |
+
+Not seeing the server in your client at all? Confirm the `command`/`args` are correct and absolute, restart the client after editing its config, and check the client's MCP logs — the line `MCP Server "<name>" (v<version>) started on stdio transport.` is printed to stderr when a pack loads successfully.
 
 ---
 

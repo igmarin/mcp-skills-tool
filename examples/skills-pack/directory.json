@@ -1,0 +1,21 @@
+{
+  "name": "example-skills",
+  "version": "1.0.0",
+  "summary": "A minimal example skill pack for mcp-skills-tool.",
+  "skills": {
+    "hello-world": {
+      "path": "hello-world/SKILL.md",
+      "name": "Hello World",
+      "description": "A tiny starter skill that greets the user and shows how a skill is structured.",
+      "tags": ["example", "starter"],
+      "version": "1.0.0"
+    },
+    "code-review": {
+      "path": "code-review/SKILL.md",
+      "name": "Code Review",
+      "description": "Reviews a diff for correctness, clarity, and style before it is merged.",
+      "tags": ["quality", "review"],
+      "version": "1.0.0"
+    }
+  }
+}

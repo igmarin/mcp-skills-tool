@@ -51,12 +51,13 @@ The project was built using Test-Driven Development (TDD) with Vitest.
 │   └── pre-commit         # Runs lint + test:coverage before every commit
 ├── .github/workflows/
 │   ├── ci.yml             # Lint, test, coverage on push/PR
+│   ├── docker.yml         # Build multi-arch image + push to GHCR on v* tags
 │   └── deepseek-review.yml # Automated AI PR review via DeepSeek API
 ├── package.json           # NPM manifest, scripts, dependencies
 ├── tsconfig.json          # TypeScript compiler config (strict, NodeNext, declaration emit)
 ├── vitest.config.ts       # Test config (globals, coverage thresholds at 70%)
 ├── eslint.config.js       # ESLint flat config (typescript-eslint recommended + custom rules)
-└── Dockerfile             # Multi-stage build (node:20-alpine)
+└── Dockerfile             # Hardened multi-stage build (node:20-alpine, non-root, healthcheck)
 ```
 
 ---
@@ -89,9 +90,15 @@ node dist/index.js --config https://raw.githubusercontent.com/user/repo/main/dir
 ### Docker Usage
 
 ```bash
+# Build locally
 docker build -t igmarin/mcp-skills-tool .
 docker run -i --rm -v /absolute/path/to/skills-repo:/skills igmarin/mcp-skills-tool --config /skills/directory.json
+
+# Or pull the published multi-arch image from GHCR
+docker run -i --rm -v /absolute/path/to/skills-repo:/skills ghcr.io/igmarin/mcp-skills-tool --config /skills/directory.json
 ```
+
+The runtime image runs as the unprivileged `node` user (not root) and ships a `HEALTHCHECK` that validates the entrypoint is runnable (`node dist/index.js --version`).
 
 ---
 
@@ -175,6 +182,15 @@ Runs on every push (except `main`) and every PR:
 4. `npm run lint`
 5. `npm run test:coverage`
 
+### `docker.yml`
+Runs on `v*` tag pushes (same trigger as `release.yml`) and manual `workflow_dispatch`:
+1. Checkout, set up QEMU + Buildx (for cross-arch builds).
+2. Log in to GHCR (`ghcr.io`) using `github.actor` + `GITHUB_TOKEN` (`permissions: packages: write`).
+3. Derive tags/labels via `docker/metadata-action` (semver tags + auto `latest`).
+4. `docker/build-push-action` builds `linux/amd64,linux/arm64` and pushes to `ghcr.io/igmarin/mcp-skills-tool`.
+
+All actions are SHA-pinned with `# vX.Y.Z` comments, matching the other workflows.
+
 ### `deepseek-review.yml`
 Runs on non-draft PRs (ignoring markdown and workflow-only changes):
 1. Invokes the OpenCode review action (`anomalyco/opencode/github@v1.15.13`) using `deepseek/deepseek-v4-flash`.
@@ -190,7 +206,7 @@ Located at `.git-hooks/pre-commit`. It runs `npm run lint` and `npm run test:cov
 
 - All JSON inputs (config and incoming messages) are validated with Zod.
 - Local file paths are resolved with `path.resolve` to mitigate traversal issues.
-- The Docker image uses `node:20-alpine` and a multi-stage build to minimize attack surface.
+- The Docker image uses `node:20-alpine` and a multi-stage build to minimize attack surface, runs as the unprivileged `node` user (never root), and defines a `HEALTHCHECK`.
 - No secrets or API keys are present in source files. Environment-sensitive data is read from `process.env`.
 - The `no-console` ESLint rule discourages accidental `console.log` leakage in production code.
 
@@ -199,5 +215,5 @@ Located at `.git-hooks/pre-commit`. It runs `npm run lint` and `npm run test:cov
 ## Deployment Notes
 
 - **NPM Package:** The package is published as `@igmarin/mcp-skills-tool`. `dist/` contains compiled JS and `.d.ts` declarations.
-- **Docker:** Multi-stage Dockerfile copies `dist/` into a production `node:20-alpine` image with only production dependencies.
+- **Docker:** Hardened multi-stage Dockerfile copies `dist/` into a production `node:20-alpine` image with only production dependencies, runs as the non-root `node` user, and adds a `HEALTHCHECK` (`node dist/index.js --version`, since the stdio server has no port). The `docker.yml` workflow publishes a multi-arch (`linux/amd64` + `linux/arm64`) image to `ghcr.io/igmarin/mcp-skills-tool` on every `v*` tag.
 - **Cloudflare Workers:** Import `handleMcpRequest` and `createMcpServer` from the package. Provide your own `directory.json` loader and `fetchSkillContent` implementation.

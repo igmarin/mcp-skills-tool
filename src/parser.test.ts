@@ -45,6 +45,52 @@ describe("parseDirectoryConfig", () => {
     expect(parsed.skills).toEqual({});
   });
 
+  it("should parse and preserve optional per-skill metadata", () => {
+    const mockDirectoryJson = {
+      name: "test-skills",
+      version: "1.0.0",
+      summary: "A test skill pack",
+      skills: {
+        "code-review": {
+          path: "skills/code-review/SKILL.md",
+          name: "Code Review",
+          description: "Reviews a diff for correctness and style.",
+          tags: ["quality", "review"],
+          version: "2.1.0",
+        },
+      },
+    };
+
+    const parsed = parseDirectoryConfig(mockDirectoryJson);
+    expect(parsed.skills["code-review"]).toEqual({
+      path: "skills/code-review/SKILL.md",
+      name: "Code Review",
+      description: "Reviews a diff for correctness and style.",
+      tags: ["quality", "review"],
+      version: "2.1.0",
+    });
+  });
+
+  it("should leave optional metadata undefined for a path-only skill (backward compatible)", () => {
+    const parsed = parseDirectoryConfig({
+      name: "test-skills",
+      version: "1.0.0",
+      summary: "A test skill pack",
+      skills: {
+        "hello-world": {
+          path: "skills/hello-world/SKILL.md",
+        },
+      },
+    });
+
+    const skill = parsed.skills["hello-world"];
+    expect(skill).toEqual({ path: "skills/hello-world/SKILL.md" });
+    expect(skill.name).toBeUndefined();
+    expect(skill.description).toBeUndefined();
+    expect(skill.tags).toBeUndefined();
+    expect(skill.version).toBeUndefined();
+  });
+
   it("should throw when a skill entry has a non-string path", () => {
     const invalidJson = {
       ...baseMetadata,
@@ -58,6 +104,24 @@ describe("parseDirectoryConfig", () => {
     const invalidJson = {
       ...baseMetadata,
       skills: { "hello-world": {} },
+    };
+
+    expect(() => parseDirectoryConfig(invalidJson)).toThrow();
+  });
+
+  it("should throw when a skill entry's tags is a string rather than an array", () => {
+    const invalidJson = {
+      ...baseMetadata,
+      skills: { "hello-world": { path: "skills/hello-world/SKILL.md", tags: "x" } },
+    };
+
+    expect(() => parseDirectoryConfig(invalidJson)).toThrow();
+  });
+
+  it("should throw when a skill entry's tags contains a non-string element", () => {
+    const invalidJson = {
+      ...baseMetadata,
+      skills: { "hello-world": { path: "skills/hello-world/SKILL.md", tags: [1] } },
     };
 
     expect(() => parseDirectoryConfig(invalidJson)).toThrow();

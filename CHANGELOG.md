@@ -31,6 +31,7 @@ Initial public release.
 - Zod validation of the `directory.json` configuration at the input boundary.
 - Graceful CLI lifecycle: SIGINT/SIGTERM close the server and exit cleanly, and expected startup failures (missing/invalid config) print a concise message with a non-zero exit instead of a raw stack trace.
 - Packaging that publishes the compiled `dist/` only, a `tsc --noEmit` type-check gate in CI and the pre-commit hook, and an MIT license.
+- Optional per-skill metadata in `directory.json` (`name`, `description`, `tags`, `version`), surfaced in `resources/list` (resource `name`/`description`) and in the `list_skills` tool output (name, description, tags, prefixed with the pack `summary`). All fields are optional, so existing path-only configs are unchanged.
 
 ### Changed
 - Edge/serverless transport migrated to the modern web-standard **Streamable HTTP** transport (`WebStandardStreamableHTTPServerTransport`). `handleMcpRequest` now serves the full session lifecycle (initialize / message / teardown) on a single endpoint via `mcp-session-id`, and adds CORS headers to every response.

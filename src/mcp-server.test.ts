@@ -12,6 +12,13 @@ const mockConfig = {
     "hello-world": {
       path: "skills/hello-world/SKILL.md",
     },
+    "code-review": {
+      path: "skills/code-review/SKILL.md",
+      name: "Code Review",
+      description: "Reviews a diff for correctness and style.",
+      tags: ["quality", "review"],
+      version: "2.1.0",
+    },
   },
 };
 
@@ -62,12 +69,25 @@ describe("createMcpServer", () => {
     const client = await connectClient(async () => "Hello World");
 
     const result = await client.listResources();
-    expect(result.resources).toHaveLength(1);
-    expect(result.resources[0]).toMatchObject({
+    expect(result.resources).toHaveLength(2);
+
+    // Path-only skill falls back to the record key and the generic description.
+    const helloWorld = result.resources.find((resource) => resource.uri === "skill://hello-world");
+    expect(helloWorld).toMatchObject({
       uri: "skill://hello-world",
       name: "hello-world",
       mimeType: "text/markdown",
       description: "Agent skill: hello-world",
+    });
+
+    // Enriched skill surfaces its metadata `name` and `description`, while the
+    // URI still keys off the record name.
+    const codeReview = result.resources.find((resource) => resource.uri === "skill://code-review");
+    expect(codeReview).toMatchObject({
+      uri: "skill://code-review",
+      name: "Code Review",
+      mimeType: "text/markdown",
+      description: "Reviews a diff for correctness and style.",
     });
   });
 
@@ -129,7 +149,15 @@ describe("createMcpServer", () => {
     const client = await connectClient(async () => "");
 
     const result = await client.callTool({ name: "list_skills", arguments: {} });
-    expect(firstText(result)).toContain("hello-world");
+    const text = firstText(result);
+
+    // Header prepends the pack summary and lists every skill.
+    expect(text).toContain("A test skill pack");
+    expect(text).toContain("hello-world");
+    // Enriched skill surfaces its name, description, and tags.
+    expect(text).toContain("Code Review");
+    expect(text).toContain("Reviews a diff for correctness and style.");
+    expect(text).toContain("[tags: quality, review]");
   });
 
   it("should execute get_skill tool", async () => {

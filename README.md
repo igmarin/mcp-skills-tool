@@ -111,3 +111,9 @@ app.all('/mcp/*', async (c) => {
 
 export default app;
 ```
+
+---
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).

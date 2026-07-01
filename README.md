@@ -482,7 +482,7 @@ export default app;
 
 ## Contributing
 
-Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for local setup, the type-check / format / lint / test workflow, and pull-request expectations.
+Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for local setup, the type-check / format / lint / test workflow, and pull-request expectations. By participating, you agree to abide by our [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Security
 

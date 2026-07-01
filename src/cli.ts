@@ -79,7 +79,9 @@ export async function loadConfig(
     } catch (error) {
       throw new CliError(`Config at ${configSource} is not valid JSON.`, { cause: error });
     }
-    fetchSkillContent = createRemoteSkillFetcher(configSource, deps.fetchImpl);
+    // Reuse the same resolved fetch (with its default) for the skill fetcher,
+    // so the defaulting is explicit here rather than relying on the factory.
+    fetchSkillContent = createRemoteSkillFetcher(configSource, fetchImpl);
   } else {
     const absoluteConfigPath = path.resolve(configSource);
     log(`Loading config from local path: ${absoluteConfigPath}`);
@@ -98,7 +100,9 @@ export async function loadConfig(
     } catch (error) {
       throw new CliError(`Config file is not valid JSON: ${absoluteConfigPath}`, { cause: error });
     }
-    fetchSkillContent = createLocalSkillFetcher(path.dirname(absoluteConfigPath), deps.readFile);
+    // Reuse the same resolved reader (with its default) for the skill fetcher,
+    // so the defaulting is explicit here rather than relying on the factory.
+    fetchSkillContent = createLocalSkillFetcher(path.dirname(absoluteConfigPath), readFile);
   }
 
   try {

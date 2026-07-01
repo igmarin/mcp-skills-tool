@@ -1,4 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
+import * as fsp from "node:fs/promises";
+import * as os from "node:os";
+import * as nodePath from "node:path";
 import { loadConfig, reportFatalError, shutdown, installSignalHandlers, CliError } from "./cli.js";
 
 const validConfig = {
@@ -40,6 +43,38 @@ describe("loadConfig", () => {
     expect(result.config.name).toBe("test-skills");
     const content = await result.fetchSkillContent("skills/hello-world/SKILL.md");
     expect(content).toBe("# skill content");
+  });
+
+  it("confines the local fetcher to the config directory (rejects traversal)", async () => {
+    const result = await loadConfig("/skills/directory.json", {
+      log: () => {},
+      readFile: async () => JSON.stringify(validConfig),
+    });
+
+    await expect(result.fetchSkillContent("../secret.md")).rejects.toThrow(
+      "escapes the skills directory",
+    );
+  });
+
+  it("uses real filesystem defaults when no readFile is injected (production path)", async () => {
+    // Regression guard: in production `loadConfig` is called with no `deps`, so
+    // both the config read and the skill fetcher must fall back to the real
+    // fs-based defaults instead of receiving `undefined`.
+    const dir = await fsp.mkdtemp(nodePath.join(os.tmpdir(), "mcp-cli-test-"));
+    try {
+      await fsp.writeFile(nodePath.join(dir, "directory.json"), JSON.stringify(validConfig));
+      await fsp.mkdir(nodePath.join(dir, "skills", "hello-world"), { recursive: true });
+      await fsp.writeFile(
+        nodePath.join(dir, "skills", "hello-world", "SKILL.md"),
+        "# real skill content",
+      );
+
+      const result = await loadConfig(nodePath.join(dir, "directory.json"), { log: () => {} });
+      const content = await result.fetchSkillContent("skills/hello-world/SKILL.md");
+      expect(content).toBe("# real skill content");
+    } finally {
+      await fsp.rm(dir, { recursive: true, force: true });
+    }
   });
 
   it("raises a CliError (no stack) when the local config file is unreadable", async () => {

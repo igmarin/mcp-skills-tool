@@ -36,3 +36,11 @@ jobs:
 
       - name: Run Tests with Coverage
         run: npm run test:coverage
+
+      - name: Security Audit (non-blocking)
+        # Reports known advisories without failing the build. Currently surfaces
+        # transitive-only findings (hono via @modelcontextprotocol/sdk; esbuild via
+        # vitest/tsx). Flip to a hard gate (remove continue-on-error) once the
+        # dependency tree is clean.
+        continue-on-error: true
+        run: npm audit --audit-level=high

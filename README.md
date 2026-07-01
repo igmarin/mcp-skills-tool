@@ -12,6 +12,62 @@ It supports running locally via **STDIO** (npm/npx or Docker) and hosting on the
 
 ---
 
+## Configuration (`directory.json`)
+
+A skill pack is described by a `directory.json` file. The top-level fields (`name`, `version`, `summary`) describe the pack, and `skills` maps a record key to a skill entry. Each skill entry requires only a `path`; the remaining per-skill fields are **optional metadata** that lets agents understand a skill without fetching its content.
+
+| Field | Location | Required | Description |
+|-------|----------|----------|-------------|
+| `name` | top level | yes | Skill pack name (used as the MCP server name). |
+| `version` | top level | yes | Skill pack version (used as the MCP server version). |
+| `summary` | top level | yes | One-line pack summary; prepended to the `list_skills` output. |
+| `skills` | top level | yes | Record of `<recordKey>` → skill entry. |
+| `path` | skill entry | yes | Path to the skill's markdown, resolved relative to the config. |
+| `name` | skill entry | no | Display name; used for the resource `name` (falls back to the record key). |
+| `description` | skill entry | no | Human-readable description; used for the resource `description` and in `list_skills` (falls back to `Agent skill: <recordKey>`). |
+| `tags` | skill entry | no | `string[]` of tags; surfaced in `list_skills`. |
+| `version` | skill entry | no | Per-skill version string. |
+
+The resource `uri` is always `skill://<recordKey>` regardless of the optional `name`. Unknown keys are ignored.
+
+**Minimal (path-only) — still fully supported:**
+
+```json
+{
+  "name": "example-skills",
+  "version": "1.0.0",
+  "summary": "An example skill pack",
+  "skills": {
+    "hello-world": {
+      "path": "skills/hello-world/SKILL.md"
+    }
+  }
+}
+```
+
+**Enriched with per-skill metadata:**
+
+```json
+{
+  "name": "example-skills",
+  "version": "1.0.0",
+  "summary": "An example skill pack",
+  "skills": {
+    "code-review": {
+      "path": "skills/code-review/SKILL.md",
+      "name": "Code Review",
+      "description": "Reviews a diff for correctness and style.",
+      "tags": ["quality", "review"],
+      "version": "2.1.0"
+    }
+  }
+}
+```
+
+Both forms parse identically; omitting the optional fields simply falls back to the previous behavior.
+
+---
+
 ## Local Usage
 
 ### Running via npx / Node.js

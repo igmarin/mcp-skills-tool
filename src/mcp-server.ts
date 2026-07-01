@@ -24,6 +24,24 @@ function lookupSkill(
 }
 
 /**
+ * Formats a single skill as one readable line for the `list_skills` tool,
+ * folding in whatever optional metadata is present. Path-only skills reduce to
+ * `- <recordKey>`; enriched skills add their description and tags, e.g.
+ * `- <name>: <description> [tags: a, b]`. Output is deterministic (it mirrors
+ * the config's insertion order and only appends metadata that exists).
+ */
+function formatSkillLine(recordKey: string, skill: DirectoryConfig["skills"][string]): string {
+  let line = `- ${skill.name ?? recordKey}`;
+  if (skill.description) {
+    line += `: ${skill.description}`;
+  }
+  if (skill.tags && skill.tags.length > 0) {
+    line += ` [tags: ${skill.tags.join(", ")}]`;
+  }
+  return line;
+}
+
+/**
  * Builds a tool result that signals failure via `isError`, following the MCP
  * guidance that tool-execution errors should be returned as results (so the
  * model can see and recover) rather than thrown as protocol errors.
@@ -63,14 +81,17 @@ export function createMcpServer(
     },
   );
 
-  // List all skills as resources
+  // List all skills as resources. The resource `uri` always keys off the record
+  // name (`skill://<recordKey>`), while optional per-skill metadata enriches the
+  // display: a `name`/`description` from the config is preferred, falling back
+  // to the record key and the generic `Agent skill: <name>` label when absent.
   server.setRequestHandler(ListResourcesRequestSchema, async () => {
     return {
-      resources: Object.entries(config.skills).map(([name]) => ({
-        uri: `skill://${name}`,
-        name: name,
+      resources: Object.entries(config.skills).map(([recordKey, skill]) => ({
+        uri: `skill://${recordKey}`,
+        name: skill.name ?? recordKey,
         mimeType: "text/markdown",
-        description: `Agent skill: ${name}`,
+        description: skill.description ?? `Agent skill: ${recordKey}`,
       })),
     };
   });
@@ -144,12 +165,15 @@ export function createMcpServer(
     const { name, arguments: args } = request.params;
 
     if (name === "list_skills") {
-      const skillsList = Object.keys(config.skills).join("\n- ");
+      const skillLines = Object.entries(config.skills)
+        .map(([recordKey, skill]) => formatSkillLine(recordKey, skill))
+        .join("\n");
+      const text = `${config.summary}\n\nAvailable skills:\n${skillLines}`;
       return {
         content: [
           {
             type: "text",
-            text: `Available skills:\n- ${skillsList}`,
+            text,
           },
         ],
       };

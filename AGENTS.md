@@ -126,13 +126,13 @@ Always run `npm run test:coverage` before committing. The pre-commit hook enforc
 
 ### `src/parser.ts`
 Defines the Zod schema for `directory.json`:
-- `DirectoryConfig` — `{ name, version, summary, skills: Record<string, { path }> }`
+- `DirectoryConfig` — `{ name, version, summary, skills: Record<string, Skill> }`, where a `Skill` is `{ path: string; name?: string; description?: string; tags?: string[]; version?: string }`. Only `path` is required; the metadata fields are all `.optional()` so path-only configs remain valid. The object is non-strict, so unknown keys are stripped.
 - `parseDirectoryConfig(json: unknown)` — validates and returns typed config.
 
 ### `src/mcp-server.ts`
 Exports `createMcpServer(config, fetchSkillContent)` which returns an MCP `Server` instance with:
-- **Resources:** `skill://<name>` URIs mapped to skill markdown files.
-- **Tools:** `list_skills` and `get_skill` for clients that prefer tool interaction.
+- **Resources:** `skill://<recordKey>` URIs mapped to skill markdown files. The resource `name`/`description` prefer the skill's optional `name`/`description` metadata, falling back to the record key and `Agent skill: <recordKey>`.
+- **Tools:** `list_skills` and `get_skill` for clients that prefer tool interaction. `list_skills` returns a structured text block: the pack `summary`, then one line per skill (`- <name>: <description> [tags: …]`) with optional metadata folded in.
 
 ### `src/cli.ts`
 Bootstrap and lifecycle helpers shared by the entrypoint, all dependency-injectable for testing:

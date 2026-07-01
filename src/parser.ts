@@ -3,9 +3,19 @@ import { z } from "zod";
 /**
  * Zod schema for a single skill entry in directory.json.
  * Defines the shape of the object mapped under each skill name.
+ *
+ * Only `path` is required. The `name`, `description`, `tags`, and `version`
+ * fields are optional metadata: existing path-only configs still validate, and
+ * when present the metadata is surfaced in `resources/list` and `list_skills`
+ * so agents can understand a skill without fetching its content. The object is
+ * intentionally non-strict, so unknown keys continue to be stripped.
  */
 export const SkillSchema = z.object({
   path: z.string(),
+  name: z.string().optional(),
+  description: z.string().optional(),
+  tags: z.array(z.string()).optional(),
+  version: z.string().optional(),
 });
 
 /**

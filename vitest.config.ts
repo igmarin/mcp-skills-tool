@@ -8,14 +8,7 @@ export default defineConfig({
       provider: "v8",
       all: true,
       include: ["src/**/*.ts", "scripts/**/*.js"],
-      exclude: [
-        "**/*.test.ts",
-        "**/*.spec.ts",
-        "**/*.test.js",
-        "**/*.spec.js",
-        "src/index.ts",
-        "src/worker.ts",
-      ],
+      exclude: ["**/*.test.ts", "**/*.spec.ts", "**/*.test.js", "**/*.spec.js", "src/worker.ts"],
       thresholds: {
         statements: 70,
         branches: 70,

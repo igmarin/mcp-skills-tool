@@ -1,12 +1,18 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import {
   ListResourcesRequestSchema,
+  ListResourceTemplatesRequestSchema,
   ReadResourceRequestSchema,
   ListToolsRequestSchema,
   CallToolRequestSchema,
+  ListPromptsRequestSchema,
+  GetPromptRequestSchema,
   McpError,
   ErrorCode,
   type ListResourcesResult,
+  type ListPromptsResult,
+  type GetPromptResult,
+  type ListResourceTemplatesResult,
 } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { DirectoryConfig } from "./parser.js";
@@ -121,13 +127,16 @@ function toolError(message: string) {
 }
 
 /**
- * Creates and configures an MCP Server instance that exposes skills as resources and tools.
+ * Creates and configures an MCP Server instance that exposes skills as
+ * resources, tools, and prompts.
  *
  * Each skill defined in the {@link DirectoryConfig} is registered as:
  * - A `skill://<name>` resource for direct content retrieval (paginated via an
- *   opaque `nextCursor` per the MCP spec)
+ *   opaque `nextCursor` per the MCP spec), plus a `skill://{name}` resource
+ *   template describing that URI space
  * - Helper tools (`list_skills`, `search_skills`, `get_skill`) for clients that
  *   prefer tool interaction
+ * - A prompt per skill (slash-command style) whose content is the skill markdown
  *
  * @param config - Validated skill pack configuration
  * @param fetchSkillContent - Async function that resolves a skill path to its markdown content
@@ -146,6 +155,7 @@ export function createMcpServer(
       capabilities: {
         resources: {},
         tools: {},
+        prompts: {},
       },
     },
   );
@@ -208,6 +218,69 @@ export function createMcpServer(
     } catch (error: unknown) {
       console.error(`Failed to read skill "${skillName}":`, error);
       throw new Error(`Failed to read skill content for "${skillName}".`);
+    }
+  });
+
+  // Advertise the skill URI space as a single resource template. Clients that
+  // support templates can construct `skill://<name>` URIs for any skill rather
+  // than relying on the enumerated `resources/list` entries.
+  server.setRequestHandler(ListResourceTemplatesRequestSchema, async () => {
+    const result: ListResourceTemplatesResult = {
+      resourceTemplates: [
+        {
+          uriTemplate: "skill://{name}",
+          name: "skill",
+          description: "Access a skill's markdown by name",
+          mimeType: "text/markdown",
+        },
+      ],
+    };
+    return result;
+  });
+
+  // List skills as prompts (slash-command style) for clients that consume skills
+  // as prompts. Each skill maps to exactly one argument-less prompt keyed by its
+  // record name; the description prefers the skill's metadata description and
+  // falls back to the generic label used elsewhere. Kept single-page for
+  // simplicity — the prompt set mirrors the skill count.
+  server.setRequestHandler(ListPromptsRequestSchema, async () => {
+    const result: ListPromptsResult = {
+      prompts: Object.entries(config.skills).map(([recordKey, skill]) => ({
+        name: recordKey,
+        description: skill.description ?? `Agent skill: ${recordKey}`,
+        arguments: [],
+      })),
+    };
+    return result;
+  });
+
+  // Resolve a single prompt to the skill's markdown content. An unknown prompt
+  // name (including inherited members such as `__proto__`, guarded by
+  // lookupSkill) is a protocol invalid-params error; an underlying fetch failure
+  // is logged to stderr and surfaced with a generic message so filesystem paths
+  // / internal URLs are not leaked to the client.
+  server.setRequestHandler(GetPromptRequestSchema, async (request) => {
+    const promptName = request.params.name;
+    const skill = lookupSkill(config, promptName);
+    if (!skill) {
+      throw new McpError(ErrorCode.InvalidParams, `Unknown prompt: ${promptName}`);
+    }
+
+    try {
+      const content = await fetchSkillContent(skill.path);
+      const result: GetPromptResult = {
+        description: skill.description ?? `Agent skill: ${promptName}`,
+        messages: [
+          {
+            role: "user",
+            content: { type: "text", text: content },
+          },
+        ],
+      };
+      return result;
+    } catch (error: unknown) {
+      console.error(`Failed to load prompt "${promptName}":`, error);
+      throw new Error(`Failed to load skill content for "${promptName}".`);
     }
   });
 

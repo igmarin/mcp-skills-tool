@@ -120,6 +120,16 @@ export default app;
 
 ---
 
+## Contributing
+
+Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for local setup, the type-check / format / lint / test workflow, and pull-request expectations.
+
+## Security
+
+To report a vulnerability, follow the process in [SECURITY.md](SECURITY.md) — please do not open a public issue for security reports.
+
+---
+
 ## License
 
 This project is licensed under the [MIT License](LICENSE).

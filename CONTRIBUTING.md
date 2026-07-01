@@ -26,6 +26,8 @@ npm run setup-hooks   # installs the pre-commit hook (typecheck → format → l
 | `npm test` | Run the test suite once |
 | `npm run test:coverage` | Run tests with coverage thresholds enforced |
 | `npm start` | Run the CLI locally via `tsx` |
+| `npm run inspect` | Launch the MCP Inspector against the built server (stdio) |
+| `npm run inspect:dev` | Launch the MCP Inspector against the TypeScript source (stdio) |
 
 ## Code style & conventions
 

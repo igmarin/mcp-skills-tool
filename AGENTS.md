@@ -75,6 +75,8 @@ All commands are run via `npm`:
 | `npm install` | Install dependencies |
 | `npm run build` | Compile TypeScript (`tsc`) to `dist/` |
 | `npm start` | Run CLI locally via `tsx src/index.ts` |
+| `npm run inspect` | Launch the MCP Inspector against the built server (`dist/index.js`) |
+| `npm run inspect:dev` | Launch the MCP Inspector against the TypeScript source (`tsx src/index.ts`) |
 | `npm test` | Run tests once (`vitest run`) |
 | `npm run test:watch` | Run tests in watch mode |
 | `npm run test:coverage` | Run tests with coverage report and threshold enforcement |

@@ -369,6 +369,50 @@ To run tests in watch mode:
 npm run test:watch
 ```
 
+### Debugging with MCP Inspector
+
+The official [`@modelcontextprotocol/inspector`](https://github.com/modelcontextprotocol/inspector) provides an interactive browser UI for exercising resources, tools, and prompts while developing this server. For the Inspector's own docs, see the [MCP debugging guide](https://modelcontextprotocol.io/docs/tools/inspector).
+
+#### stdio transport
+
+1. Build the project (`npm run build` — the `inspect` script runs the compiled `dist/index.js`).
+2. Start the Inspector against the bundled example pack:
+
+   ```bash
+   npm run inspect
+   ```
+
+   Or point it at any other pack directly:
+
+   ```bash
+   npx @modelcontextprotocol/inspector node dist/index.js --config /path/to/directory.json
+   ```
+
+3. The Inspector launches a local web UI (default `http://localhost:6274`) and spawns the stdio server for you.
+
+Once connected:
+
+- Click **Resources** → **List Resources** to see `skill://hello-world`, `skill://code-review`, etc. Select one and **Read Resource** to view its markdown.
+- Click **Tools** → **List Tools**, then run:
+  - `list_skills` (no arguments)
+  - `get_skill` with `{"name": "hello-world"}`
+  - `search_skills` with `{"query": "review"}` or `{"query": "example", "tags": ["starter"]}`
+- Click **Prompts** → **List Prompts**, then run a prompt such as `hello-world` to see the skill returned as a single user message.
+
+#### HTTP / Streamable HTTP transport
+
+To inspect a Cloudflare Worker (or any runtime hosting `handleMcpRequest` from `src/worker.ts`) over Streamable HTTP:
+
+1. Start the Worker and note the MCP endpoint URL (for example `http://localhost:8787/mcp`).
+2. In the Inspector UI choose **Transport type: Streamable HTTP**, enter the endpoint URL, and click **Connect**. The Inspector manages the `mcp-session-id` handshake automatically for HTTP transports.
+3. You can also use the Inspector's CLI mode against a deployed endpoint:
+
+   ```bash
+   npx @modelcontextprotocol/inspector --cli https://example.com/mcp --transport http --method tools/list
+   ```
+
+> The `inspect` script uses the built `dist/index.js`; run `npm run build` first. For a source-only loop use `npm run inspect:dev` (launches via `tsx src/index.ts`).
+
 ---
 
 ## Versioning & Changelog

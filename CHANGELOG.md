@@ -34,6 +34,7 @@ Initial public release.
 
 ### Changed
 - Edge/serverless transport migrated to the modern web-standard **Streamable HTTP** transport (`WebStandardStreamableHTTPServerTransport`). `handleMcpRequest` now serves the full session lifecycle (initialize / message / teardown) on a single endpoint via `mcp-session-id`, and adds CORS headers to every response.
+- Enabled type-aware ESLint for non-test `src/**/*.ts` (via typescript-eslint's `projectService`) with `@typescript-eslint/no-floating-promises`, `no-misused-promises`, and `await-thenable` as errors, so async bugs like unhandled promises are caught at lint time.
 
 ### Removed
 - Deprecated hand-rolled SSE edge transport (`CloudflareWorkerSseTransport`) and the `activeTransports` export.

@@ -43,6 +43,27 @@ export default defineConfig([
     },
   },
   {
+    // Type-aware linting for non-test TS source. `projectService` lets
+    // typescript-eslint pull real type information from the project so rules
+    // that reason about Promises (floating/misused/awaited) can run. Test and
+    // spec files are excluded because tsconfig.json excludes them from the TS
+    // project, so keeping them off type-aware rules avoids projectService
+    // errors while they stay covered by the non-type-checked parser above.
+    files: ["src/**/*.ts"],
+    ignores: ["**/*.test.ts", "**/*.spec.ts"],
+    languageOptions: {
+      parserOptions: {
+        projectService: true,
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+    rules: {
+      "@typescript-eslint/no-floating-promises": "error",
+      "@typescript-eslint/no-misused-promises": "error",
+      "@typescript-eslint/await-thenable": "error",
+    },
+  },
+  {
     // Server/CLI code runs on the stdio transport, where stdout carries the
     // JSON-RPC protocol stream. A stray console.log/info/debug there corrupts
     // the wire, so only console.warn/error (stderr) are permitted here. Tests

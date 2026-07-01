@@ -24,6 +24,18 @@ function lookupSkill(
 }
 
 /**
+ * Builds a tool result that signals failure via `isError`, following the MCP
+ * guidance that tool-execution errors should be returned as results (so the
+ * model can see and recover) rather than thrown as protocol errors.
+ */
+function toolError(message: string) {
+  return {
+    isError: true,
+    content: [{ type: "text" as const, text: message }],
+  };
+}
+
+/**
  * Creates and configures an MCP Server instance that exposes skills as resources and tools.
  *
  * Each skill defined in the {@link DirectoryConfig} is registered as:
@@ -63,7 +75,10 @@ export function createMcpServer(
     };
   });
 
-  // Read individual skill content
+  // Read individual skill content. A malformed URI or unknown skill is a protocol
+  // error (invalid request); an underlying read failure is logged to stderr and
+  // surfaced with a generic message so filesystem paths / internal URLs are not
+  // leaked to the client.
   server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
     const uri = request.params.uri;
     if (!uri.startsWith("skill://")) {
@@ -87,8 +102,8 @@ export function createMcpServer(
         ],
       };
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
-      throw new Error(`Failed to read skill content: ${message}`);
+      console.error(`Failed to read skill "${skillName}":`, error);
+      throw new Error(`Failed to read skill content for "${skillName}".`);
     }
   });
 
@@ -122,7 +137,9 @@ export function createMcpServer(
     };
   });
 
-  // Call tool handler
+  // Call tool handler. Tool-execution failures (unknown skill, fetch failure) are
+  // returned as `isError` results so the model can recover; malformed calls (bad
+  // arguments, unknown tool) remain protocol errors.
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args } = request.params;
 
@@ -147,7 +164,7 @@ export function createMcpServer(
       const skillName = parsedArgs.data.name;
       const skill = lookupSkill(config, skillName);
       if (!skill) {
-        throw new Error(`Skill not found: ${skillName}`);
+        return toolError(`Skill not found: ${skillName}`);
       }
 
       try {
@@ -161,8 +178,8 @@ export function createMcpServer(
           ],
         };
       } catch (error: unknown) {
-        const message = error instanceof Error ? error.message : String(error);
-        throw new Error(`Failed to fetch skill content: ${message}`);
+        console.error(`get_skill failed for "${skillName}":`, error);
+        return toolError(`Failed to load skill "${skillName}".`);
       }
     }
 

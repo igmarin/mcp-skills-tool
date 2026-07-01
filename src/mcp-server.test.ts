@@ -145,51 +145,54 @@ describe("createMcpServer", () => {
     ).rejects.toThrow("Invalid arguments");
   });
 
-  it("should throw an error when get_skill finds unknown skill", async () => {
+  it("should return an isError result when get_skill finds unknown skill", async () => {
     const server = createMcpServer(mockConfig, async () => "");
     const callToolFn = (server as any)._requestHandlers.get("tools/call");
 
-    await expect(
-      callToolFn({
-        method: "tools/call",
-        params: {
-          name: "get_skill",
-          arguments: { name: "unknown-skill" },
-        },
-      }),
-    ).rejects.toThrow("Skill not found");
+    const result = await callToolFn({
+      method: "tools/call",
+      params: {
+        name: "get_skill",
+        arguments: { name: "unknown-skill" },
+      },
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain("Skill not found");
   });
 
   it("should not resolve inherited object members like __proto__ as skills", async () => {
     const server = createMcpServer(mockConfig, async () => "");
     const callToolFn = (server as any)._requestHandlers.get("tools/call");
 
-    await expect(
-      callToolFn({
-        method: "tools/call",
-        params: {
-          name: "get_skill",
-          arguments: { name: "__proto__" },
-        },
-      }),
-    ).rejects.toThrow("Skill not found");
+    const result = await callToolFn({
+      method: "tools/call",
+      params: {
+        name: "get_skill",
+        arguments: { name: "__proto__" },
+      },
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain("Skill not found");
   });
 
-  it("should throw an error when get_skill content fetch fails", async () => {
+  it("should return an isError result when get_skill content fetch fails", async () => {
     const server = createMcpServer(mockConfig, async () => {
       throw new Error("Network error");
     });
     const callToolFn = (server as any)._requestHandlers.get("tools/call");
 
-    await expect(
-      callToolFn({
-        method: "tools/call",
-        params: {
-          name: "get_skill",
-          arguments: { name: "hello-world" },
-        },
-      }),
-    ).rejects.toThrow("Failed to fetch skill content");
+    const result = await callToolFn({
+      method: "tools/call",
+      params: {
+        name: "get_skill",
+        arguments: { name: "hello-world" },
+      },
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain("Failed to load skill");
   });
 
   it("should throw an error for unknown tool", async () => {

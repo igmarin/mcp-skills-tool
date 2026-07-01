@@ -38,6 +38,8 @@
     "format:check": "prettier --check .",
     "setup-hooks": "cp .git-hooks/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit",
     "start": "tsx src/index.ts",
+    "inspect": "npx @modelcontextprotocol/inspector node dist/index.js --config examples/skills-pack/directory.json",
+    "inspect:dev": "npx @modelcontextprotocol/inspector tsx src/index.ts --config examples/skills-pack/directory.json",
     "prepublishOnly": "npm run build"
   },
   "dependencies": {

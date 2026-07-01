@@ -45,6 +45,8 @@ The project was built using Test-Driven Development (TDD) with Vitest.
 ├── scripts/
 │   ├── evaluate-review.js      # GitHub Actions helper to evaluate OpenCode bot feedback
 │   └── evaluate-review.test.js # Unit tests for the review evaluator
+├── examples/
+│   └── skills-pack/       # Runnable sample pack referenced by the README (directory.json + SKILL.md files)
 ├── dist/                  # Compiled JavaScript output (gitignored, built by tsc)
 ├── coverage/              # Vitest coverage reports (gitignored)
 ├── .git-hooks/

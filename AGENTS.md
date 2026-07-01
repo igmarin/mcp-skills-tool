@@ -138,7 +138,7 @@ Exports `createMcpServer(config, fetchSkillContent)` which returns an MCP `Serve
 CLI entrypoint using Commander. Parses `--config <path|url>`, resolves local or remote paths, fetches `directory.json`, builds the MCP server, and connects it to `StdioServerTransport`.
 
 ### `src/worker.ts`
-Exports `handleMcpRequest(request, mcpServerCreator)` and `CloudflareWorkerSseTransport` for running the server on Cloudflare Workers/Pages Functions over SSE. Sessions are stored in an in-memory `Map<string, CloudflareWorkerSseTransport>`. For production scaling, the code comments suggest migrating to Durable Objects.
+Exports `handleMcpRequest(request, mcpServerCreator)` for running the server on Cloudflare Workers/Pages Functions (or any Web Standard runtime) over the modern web-standard **Streamable HTTP** transport (`WebStandardStreamableHTTPServerTransport` from `@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js`). A single endpoint handles the full session lifecycle (initialize / message / `DELETE` teardown) keyed by the `mcp-session-id` header, and CORS headers are added to every response. Sessions are stored in a module-private in-memory `Map<string, WebStandardStreamableHTTPServerTransport>`. For production scaling, the code comments suggest migrating to Durable Objects.
 
 ### `scripts/evaluate-review.js`
 A GitHub Actions helper that fetches bot comments/reviews on a PR, parses `[OPENCODE_VERDICT_METADATA]` blocks (or falls back to tag counting), determines a review state (`APPROVE`, `COMMENT`, `REQUEST_CHANGES`), and submits the review via the GitHub CLI (`gh`).

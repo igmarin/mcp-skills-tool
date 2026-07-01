@@ -32,4 +32,10 @@ Initial public release.
 - Graceful CLI lifecycle: SIGINT/SIGTERM close the server and exit cleanly, and expected startup failures (missing/invalid config) print a concise message with a non-zero exit instead of a raw stack trace.
 - Packaging that publishes the compiled `dist/` only, a `tsc --noEmit` type-check gate in CI and the pre-commit hook, and an MIT license.
 
+### Changed
+- Edge/serverless transport migrated to the modern web-standard **Streamable HTTP** transport (`WebStandardStreamableHTTPServerTransport`). `handleMcpRequest` now serves the full session lifecycle (initialize / message / teardown) on a single endpoint via `mcp-session-id`, and adds CORS headers to every response.
+
+### Removed
+- Deprecated hand-rolled SSE edge transport (`CloudflareWorkerSseTransport`) and the `activeTransports` export.
+
 [1.0.0]: https://github.com/igmarin/mcp-skills-tool/releases/tag/v1.0.0

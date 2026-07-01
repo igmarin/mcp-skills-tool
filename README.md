@@ -75,11 +75,13 @@ Release notes live in [CHANGELOG.md](CHANGELOG.md). This project follows [Semant
 
 ## Integration with Cloudflare Workers & Hono
 
-This package includes a helper (`handleMcpRequest` in `dist/worker.js`) to host your MCP server over Server-Sent Events (SSE) on serverless platforms like Cloudflare Workers or Pages Functions running Hono.
+This package includes a helper (`handleMcpRequest` in `dist/worker.js`) to host your MCP server over the modern web-standard **Streamable HTTP** transport on serverless platforms like Cloudflare Workers or Pages Functions running Hono.
+
+A single endpoint handles the whole session lifecycle: `POST` an `initialize` request to open a session (the response carries an `mcp-session-id` header), then send subsequent `POST`/`GET` requests — and a final `DELETE` to tear down — with that same `mcp-session-id` header. CORS headers (including exposing `mcp-session-id`) are added to every response, so browser-based clients work out of the box.
 
 ### Example Router Configuration
 
-In your Cloudflare Worker or Hono router:
+In your Cloudflare Worker or Hono router, mount `handleMcpRequest` on one route that accepts `GET`, `POST`, `DELETE`, and `OPTIONS`:
 
 ```typescript
 import { Hono } from 'hono';
@@ -87,7 +89,8 @@ import { handleMcpRequest, createMcpServer } from '@igmarin/mcp-skills-tool';
 
 const app = new Hono();
 
-app.all('/mcp/*', async (c) => {
+app.all('/mcp', async (c) => {
+  // Build a fresh MCP server per session.
   const creator = async () => {
     // 1. Fetch or load your directory.json configuration
     const directoryJson = {
@@ -111,12 +114,14 @@ app.all('/mcp/*', async (c) => {
     return createMcpServer(directoryJson, fetchSkillContent);
   };
 
-  // Process GET (SSE connection) and POST (incoming JSON-RPC messages)
+  // Handles GET/POST/DELETE (and OPTIONS preflight) on the single MCP endpoint.
   return handleMcpRequest(c.req.raw, creator);
 });
 
 export default app;
 ```
+
+> Sessions are tracked in an in-memory `Map` scoped to a single Worker isolate. That is fine for short-lived connections served by one instance; for production scaling, route each session to a Cloudflare Durable Object (or equivalent stateful backend).
 
 ---
 

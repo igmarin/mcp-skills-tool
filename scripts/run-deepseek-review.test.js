@@ -216,7 +216,7 @@ describe('main integration', () => {
           text: async () => 'diff --git a/src/index.ts b/src/index.ts'
         });
       }
-      if (url.includes('deepseek.com')) {
+      if (url.includes('/chat/completions')) {
         return Promise.resolve({
           ok: true,
           status: 200,

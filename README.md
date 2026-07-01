@@ -102,6 +102,27 @@ docker run -i --rm \
   igmarin/mcp-skills-tool --config /skills/directory.json
 ```
 
+### Caching
+
+Skill content is cached in-memory, keyed by skill path, so repeated `resources/read` and `get_skill` calls for the same skill do not re-fetch it. This matters most for remote (`http(s)://`) packs, where each read would otherwise be a network round-trip.
+
+- Entries stay fresh for a configurable TTL (default **300 seconds**). While an entry is fresh it is served straight from memory with no I/O.
+- For remote packs, after the TTL expires the fetcher **revalidates cheaply**: it remembers each skill's `ETag` (falling back to `Last-Modified`) and re-requests with `If-None-Match` / `If-Modified-Since`. A `304 Not Modified` reuses the stored body instead of re-downloading it.
+- Errors are never cached — a failed fetch is retried on the next read.
+
+| Flag | Description |
+|------|-------------|
+| `--cache-ttl <seconds>` | Cache TTL in seconds (default `300`). |
+| `--no-cache` | Disable caching entirely; every read fetches fresh. |
+
+```bash
+# Longer TTL (10 minutes)
+node dist/index.js --config /path/to/directory.json --cache-ttl 600
+
+# Disable caching (always fetch fresh)
+node dist/index.js --config /path/to/directory.json --no-cache
+```
+
 ---
 
 ## Developer / Testing Guide

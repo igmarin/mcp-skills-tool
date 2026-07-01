@@ -136,4 +136,122 @@ describe("createRemoteSkillFetcher", () => {
 
     await expect(fetchSkill("skills/missing.md")).rejects.toThrow(/Failed to fetch skill content/);
   });
+
+  const expectedSkillUrl = "https://raw.githubusercontent.com/user/repo/main/skills/hello/SKILL.md";
+
+  it("revalidates with If-None-Match and returns the cached body on 304", async () => {
+    let call = 0;
+    const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) => {
+      call += 1;
+      if (call === 1) {
+        return {
+          ok: true,
+          status: 200,
+          statusText: "OK",
+          headers: new Headers({ ETag: '"abc123"' }),
+          text: async () => "# first body",
+        } as unknown as Response;
+      }
+      return {
+        ok: false,
+        status: 304,
+        statusText: "Not Modified",
+        headers: new Headers(),
+        text: async () => "",
+      } as unknown as Response;
+    });
+    const fetchSkill = createRemoteSkillFetcher(configUrl, fetchMock as unknown as typeof fetch);
+
+    const first = await fetchSkill("skills/hello/SKILL.md");
+    const second = await fetchSkill("skills/hello/SKILL.md");
+
+    expect(first).toBe("# first body");
+    expect(second).toBe("# first body");
+    // First request carried no conditional header.
+    expect(fetchMock.mock.calls[0]).toEqual([expectedSkillUrl]);
+    // Second request revalidated with the stored ETag and reused the cached body.
+    expect(fetchMock.mock.calls[1]).toEqual([
+      expectedSkillUrl,
+      { headers: { "If-None-Match": '"abc123"' } },
+    ]);
+  });
+
+  it("falls back to If-Modified-Since when only Last-Modified is present", async () => {
+    const lastModified = "Wed, 21 Oct 2015 07:28:00 GMT";
+    let call = 0;
+    const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) => {
+      call += 1;
+      if (call === 1) {
+        return {
+          ok: true,
+          status: 200,
+          statusText: "OK",
+          headers: new Headers({ "Last-Modified": lastModified }),
+          text: async () => "# body v1",
+        } as unknown as Response;
+      }
+      return {
+        ok: false,
+        status: 304,
+        statusText: "Not Modified",
+        headers: new Headers(),
+        text: async () => "",
+      } as unknown as Response;
+    });
+    const fetchSkill = createRemoteSkillFetcher(configUrl, fetchMock as unknown as typeof fetch);
+
+    expect(await fetchSkill("skills/hello/SKILL.md")).toBe("# body v1");
+    expect(await fetchSkill("skills/hello/SKILL.md")).toBe("# body v1");
+    expect(fetchMock.mock.calls[1]).toEqual([
+      expectedSkillUrl,
+      { headers: { "If-Modified-Since": lastModified } },
+    ]);
+  });
+
+  it("updates the cached body and validator on a fresh 200 response", async () => {
+    let call = 0;
+    const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) => {
+      call += 1;
+      return {
+        ok: true,
+        status: 200,
+        statusText: "OK",
+        headers: new Headers({ ETag: `"v${call}"` }),
+        text: async () => `# body v${call}`,
+      } as unknown as Response;
+    });
+    const fetchSkill = createRemoteSkillFetcher(configUrl, fetchMock as unknown as typeof fetch);
+
+    expect(await fetchSkill("skills/hello/SKILL.md")).toBe("# body v1");
+    // The server returns a new 200 instead of a 304, so the body is refreshed.
+    expect(await fetchSkill("skills/hello/SKILL.md")).toBe("# body v2");
+    expect(fetchMock.mock.calls[1]).toEqual([
+      expectedSkillUrl,
+      { headers: { "If-None-Match": '"v1"' } },
+    ]);
+    // A third read revalidates against the freshly stored validator.
+    await fetchSkill("skills/hello/SKILL.md");
+    expect(fetchMock.mock.calls[2]).toEqual([
+      expectedSkillUrl,
+      { headers: { "If-None-Match": '"v2"' } },
+    ]);
+  });
+
+  it("treats a 304 without a stored validator as a fetch failure", async () => {
+    const fetchMock = vi.fn(
+      async () =>
+        ({
+          ok: false,
+          status: 304,
+          statusText: "Not Modified",
+          headers: new Headers(),
+          text: async () => "",
+        }) as unknown as Response,
+    );
+    const fetchSkill = createRemoteSkillFetcher(configUrl, fetchMock as unknown as typeof fetch);
+
+    await expect(fetchSkill("skills/hello/SKILL.md")).rejects.toThrow(
+      /Failed to fetch skill content/,
+    );
+  });
 });

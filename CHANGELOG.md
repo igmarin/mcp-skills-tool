@@ -19,7 +19,7 @@ Anything else — internal helpers, transport implementation details, the compil
 `dist/` layout, and test utilities — is **not** part of the public API and may
 change in minor or patch releases.
 
-## [1.0.0] - Unreleased
+## [1.0.0]
 
 Initial public release.
 

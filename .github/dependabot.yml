@@ -16,6 +16,14 @@ updates:
         update-types:
           - "minor"
           - "patch"
+    ignore:
+      # Major upgrades of the core toolchain require a deliberate migration
+      # (config + code changes), so they are kept off automated PRs. Minor/patch
+      # and security updates still flow normally.
+      - dependency-name: "eslint"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
 
   # GitHub Actions referenced by the workflows
   - package-ecosystem: "github-actions"

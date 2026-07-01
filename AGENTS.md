@@ -59,6 +59,8 @@ The project was built using Test-Driven Development (TDD) with Vitest.
 ├── tsconfig.json          # TypeScript compiler config (strict, NodeNext, declaration emit)
 ├── vitest.config.ts       # Test config (globals, coverage thresholds at 70%)
 ├── eslint.config.js       # ESLint flat config (typescript-eslint recommended + custom rules)
+├── server.json            # Official MCP registry descriptor (2025-12-11 server.schema.json)
+├── smithery.yaml          # Smithery stdio launch descriptor (configSchema + commandFunction)
 └── Dockerfile             # Hardened multi-stage build (node:20-alpine, non-root, healthcheck)
 ```
 
@@ -217,5 +219,6 @@ Located at `.git-hooks/pre-commit`. It runs `npm run lint` and `npm run test:cov
 ## Deployment Notes
 
 - **NPM Package:** The package is published as `@igmarin/mcp-skills-tool`. `dist/` contains compiled JS and `.d.ts` declarations.
+- **Registry manifests:** `server.json` (official MCP registry descriptor, validated against `https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json`) and `smithery.yaml` (Smithery stdio `startCommand`) live at the repo root so registries can index and launch the server. `package.json` carries a matching `mcpName` (`io.github.igmarin/mcp-skills-tool`) so the MCP registry can verify npm ownership. These manifests are intentionally **not** added to the `files` array — registries read them from the source repo, not the npm tarball. Actual submission (`mcp-publisher publish`; Smithery repo import) is a manual post-merge step.
 - **Docker:** Hardened multi-stage Dockerfile copies `dist/` into a production `node:20-alpine` image with only production dependencies, runs as the non-root `node` user, and adds a `HEALTHCHECK` (`node dist/index.js --version`, since the stdio server has no port). The `docker.yml` workflow publishes a multi-arch (`linux/amd64` + `linux/arm64`) image to `ghcr.io/igmarin/mcp-skills-tool` on every `v*` tag.
 - **Cloudflare Workers:** Import `handleMcpRequest` and `createMcpServer` from the package. Provide your own `directory.json` loader and `fetchSkillContent` implementation.

@@ -1,0 +1,39 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.igmarin/mcp-skills-tool",
+  "title": "MCP Skills Tool",
+  "description": "Serve directory.json skill packs as MCP resources, tools, and prompts over stdio.",
+  "version": "1.0.0",
+  "repository": {
+    "url": "https://github.com/igmarin/mcp-skills-tool",
+    "source": "github"
+  },
+  "websiteUrl": "https://github.com/igmarin/mcp-skills-tool#readme",
+  "packages": [
+    {
+      "registryType": "npm",
+      "registryBaseUrl": "https://registry.npmjs.org",
+      "identifier": "@igmarin/mcp-skills-tool",
+      "version": "1.0.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "packageArguments": [
+        {
+          "type": "named",
+          "name": "--config",
+          "description": "Path or http(s) URL to the directory.json skill pack the server exposes.",
+          "format": "string",
+          "isRequired": true
+        },
+        {
+          "type": "named",
+          "name": "--cache-ttl",
+          "description": "Skill-content cache TTL in seconds (default 300).",
+          "format": "number",
+          "isRequired": false
+        }
+      ]
+    }
+  ]
+}

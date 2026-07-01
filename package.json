@@ -1,5 +1,6 @@
 {
   "name": "@igmarin/mcp-skills-tool",
+  "mcpName": "io.github.igmarin/mcp-skills-tool",
   "version": "1.0.0",
   "description": "CLI and Cloudflare Worker MCP server to serve AI skills from directory.json packs",
   "license": "MIT",

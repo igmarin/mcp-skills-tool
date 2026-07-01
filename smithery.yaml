@@ -1,0 +1,41 @@
+# Smithery configuration for @igmarin/mcp-skills-tool
+# Docs: https://smithery.ai/docs/build/project-config/smithery-yaml
+# This is a local stdio server distributed on npm; Smithery launches it via npx.
+startCommand:
+  type: stdio
+  configSchema:
+    type: object
+    required:
+      - config
+    properties:
+      config:
+        type: string
+        title: Skill pack config
+        description: Path or http(s) URL to the directory.json skill pack to expose.
+      cacheTtl:
+        type: number
+        title: Cache TTL (seconds)
+        description: Skill-content cache TTL in seconds. Defaults to 300.
+        minimum: 0
+      noCache:
+        type: boolean
+        title: Disable caching
+        description: Disable in-memory skill caching so every read fetches fresh.
+        default: false
+  commandFunction: |-
+    (config) => ({
+      command: "npx",
+      args: [
+        "-y",
+        "@igmarin/mcp-skills-tool",
+        "--config",
+        config.config,
+        ...(config.cacheTtl !== undefined ? ["--cache-ttl", String(config.cacheTtl)] : []),
+        ...(config.noCache ? ["--no-cache"] : []),
+      ],
+      env: {},
+    })
+  exampleConfig:
+    config: https://raw.githubusercontent.com/igmarin/rails-agent-skills/main/directory.json
+    cacheTtl: 300
+    noCache: false

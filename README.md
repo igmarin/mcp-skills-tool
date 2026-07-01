@@ -187,6 +187,17 @@ node dist/index.js --config /path/to/directory.json --no-cache
 
 ---
 
+## Registry / Smithery
+
+The server ships two manifests at the repository root so MCP registries can index and launch it:
+
+- [`server.json`](server.json) — the [official MCP registry](https://registry.modelcontextprotocol.io) descriptor, following the versioned [`server.schema.json`](https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json). It declares the reverse-DNS name `io.github.igmarin/mcp-skills-tool`, the npm package launch (`@igmarin/mcp-skills-tool`, stdio transport), and the required `--config <path|url>` package argument. The matching `mcpName` in [`package.json`](package.json) lets the registry verify npm ownership.
+- [`smithery.yaml`](smithery.yaml) — the [Smithery](https://smithery.ai) stdio launch descriptor. Its `configSchema` exposes the `config` path/URL (required) plus optional `cacheTtl` / `noCache`, and its `commandFunction` maps those to an `npx -y @igmarin/mcp-skills-tool --config …` invocation.
+
+> **Registry link — coming soon.** Once the server is published to the MCP registry / listed on Smithery, the registry entry URL will be linked here. Submission is a manual, one-time step (`mcp-publisher publish` for the MCP registry; Smithery indexes `smithery.yaml` from the GitHub repo).
+
+---
+
 ## MCP Client Setup
 
 `mcp-skills-tool` runs as a local **stdio** MCP server, so any MCP-capable client launches it by spawning a command. There are two invocations to choose from:

@@ -46,7 +46,7 @@
     "@types/node": "^26.0.1",
     "@vitest/coverage-v8": "^4.1.9",
     "eslint": "^9.39.1",
-    "globals": "^15.0.0",
+    "globals": "^17.7.0",
     "tsx": "^4.22.4",
     "typescript": "^5.4.5",
     "typescript-eslint": "^8.62.1",

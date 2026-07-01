@@ -16,6 +16,17 @@ updates:
         update-types:
           - "minor"
           - "patch"
+    ignore:
+      # Majors of these packages need deliberate handling rather than an auto-PR:
+      #  - eslint / typescript: major upgrades require a config + lockfile migration.
+      #  - commander: v15+ requires Node >=22.12.0, but this project targets Node 20.
+      # Minor/patch and security updates still flow normally.
+      - dependency-name: "eslint"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "commander"
+        update-types: ["version-update:semver-major"]
 
   # GitHub Actions referenced by the workflows
   - package-ecosystem: "github-actions"

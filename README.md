@@ -1,11 +1,12 @@
 # MCP Skills Tool
 
-A versatile Model Context Protocol (MCP) server that reads `directory.json` skill packs (such as those used by Tessl) and dynamically exposes those skills as MCP resources and tools to AI coding agents.
+A versatile Model Context Protocol (MCP) server that reads `directory.json` skill packs (such as those used by Tessl) and dynamically exposes those skills as MCP resources, tools, and prompts to AI coding agents.
 
 It supports running locally via **STDIO** (npm/npx or Docker) and hosting on the edge via **HTTP/SSE** (Cloudflare Workers/Pages Functions).
 
 ## Features
-* **Standard-Compliant Resource Exposure**: Registers each skill defined in `directory.json` as a `skill://<name>` resource, with cursor-based pagination (`nextCursor`) so large packs are served in pages.
+* **Standard-Compliant Resource Exposure**: Registers each skill defined in `directory.json` as a `skill://<name>` resource, with cursor-based pagination (`nextCursor`) so large packs are served in pages, plus a `skill://{name}` resource template.
+* **Prompts**: Exposes each skill as a slash-command-style MCP prompt (`prompts/list`, `prompts/get`) for clients that consume skills as prompts.
 * **Helper Tools**: Exposes `list_skills`, `search_skills`, and `get_skill` tools for clients that prefer tool interaction over resources.
 * **Dual Transport**: Supports stdio transport for local use and a custom SSE stream transport for serverless Cloudflare Workers.
 * **Flexibility**: Works with both local files and remote GitHub configuration paths.
@@ -68,11 +69,17 @@ Both forms parse identically; omitting the optional fields simply falls back to 
 
 ---
 
-## Tools & Resources
+## Tools, Resources & Prompts
 
 ### Resources
 
 Each skill is exposed as a `skill://<recordKey>` resource (`text/markdown`). `resources/list` is **paginated** per the MCP spec: it returns a fixed-size page of resources plus an opaque `nextCursor` when more remain. Pass that `nextCursor` back on the next `resources/list` call to fetch the following page; the last page omits `nextCursor`. Small packs fit in a single page and never return a cursor, so existing clients are unaffected. An invalid or malformed cursor is rejected with an `InvalidParams` error.
+
+The server also advertises a **resource template** (`resources/templates/list`): `skill://{name}` (`text/markdown`), so template-aware clients can construct a skill URI by name instead of enumerating `resources/list`.
+
+### Prompts
+
+Skills are additionally exposed as MCP **prompts** (slash-command style) for clients that consume skills that way. `prompts/list` returns one argument-less prompt per skill (`name` = the record key, `description` = the skill's description or a generic fallback). `prompts/get` with a skill's `name` fetches that skill's markdown and returns it as a single `user` message (`content: { type: "text", text: <markdown> }`). An unknown prompt name is rejected with an `InvalidParams` error; a content-fetch failure returns a generic `Failed to load skill content for "<name>"` error.
 
 ### Tools
 

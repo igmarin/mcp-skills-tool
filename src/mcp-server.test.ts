@@ -405,4 +405,80 @@ describe("createMcpServer", () => {
       "Unknown tool",
     );
   });
+
+  it("should list a prompt per skill with the right names and descriptions", async () => {
+    const client = await connectClient(async () => "");
+
+    const result = await client.listPrompts();
+    expect(result.prompts).toHaveLength(2);
+
+    // Path-only skill falls back to the generic description; args are empty.
+    const helloWorld = result.prompts.find((prompt) => prompt.name === "hello-world");
+    expect(helloWorld).toMatchObject({
+      name: "hello-world",
+      description: "Agent skill: hello-world",
+      arguments: [],
+    });
+
+    // Enriched skill surfaces its metadata description.
+    const codeReview = result.prompts.find((prompt) => prompt.name === "code-review");
+    expect(codeReview).toMatchObject({
+      name: "code-review",
+      description: "Reviews a diff for correctness and style.",
+      arguments: [],
+    });
+  });
+
+  it("should return the fetched skill content from getPrompt", async () => {
+    let fetchedPath = "";
+    const client = await connectClient(async (path) => {
+      fetchedPath = path;
+      return "# Prompt Skill Content";
+    });
+
+    const result = await client.getPrompt({ name: "hello-world" });
+
+    expect(fetchedPath).toBe("skills/hello-world/SKILL.md");
+    expect(result.description).toBe("Agent skill: hello-world");
+    expect(result.messages).toHaveLength(1);
+    expect(result.messages[0]).toMatchObject({
+      role: "user",
+      content: { type: "text", text: "# Prompt Skill Content" },
+    });
+  });
+
+  it("should reject getPrompt for an unknown prompt name", async () => {
+    const client = await connectClient(async () => "");
+
+    await expect(client.getPrompt({ name: "does-not-exist" })).rejects.toThrow("Unknown prompt");
+  });
+
+  it("should reject getPrompt for inherited members like __proto__", async () => {
+    const client = await connectClient(async () => "");
+
+    await expect(client.getPrompt({ name: "__proto__" })).rejects.toThrow("Unknown prompt");
+  });
+
+  it("should reject getPrompt with a generic message when the content fetch fails", async () => {
+    const client = await connectClient(async () => {
+      throw new Error("Network error");
+    });
+
+    await expect(client.getPrompt({ name: "hello-world" })).rejects.toThrow(
+      "Failed to load skill content",
+    );
+  });
+
+  it("should list the skill resource template", async () => {
+    const client = await connectClient(async () => "");
+
+    const result = await client.listResourceTemplates();
+    expect(result.resourceTemplates).toHaveLength(1);
+    expect(result.resourceTemplates[0]).toMatchObject({
+      uriTemplate: "skill://{name}",
+      name: "skill",
+      description: "Access a skill's markdown by name",
+      mimeType: "text/markdown",
+    });
+  });
 });

@@ -9,6 +9,21 @@ import { z } from "zod";
 import { DirectoryConfig } from "./parser.js";
 
 /**
+ * Looks up a skill by name using an own-property check, so a client-supplied
+ * name such as `__proto__` or `constructor` cannot resolve to an inherited
+ * object member instead of a real skill entry.
+ */
+function lookupSkill(
+  config: DirectoryConfig,
+  name: string,
+): DirectoryConfig["skills"][string] | undefined {
+  if (!Object.hasOwn(config.skills, name)) {
+    return undefined;
+  }
+  return config.skills[name];
+}
+
+/**
  * Creates and configures an MCP Server instance that exposes skills as resources and tools.
  *
  * Each skill defined in the {@link DirectoryConfig} is registered as:
@@ -55,7 +70,7 @@ export function createMcpServer(
       throw new Error(`Invalid URI scheme: ${uri}`);
     }
     const skillName = uri.substring("skill://".length);
-    const skill = config.skills[skillName];
+    const skill = lookupSkill(config, skillName);
     if (!skill) {
       throw new Error(`Skill not found: ${skillName}`);
     }
@@ -130,7 +145,7 @@ export function createMcpServer(
       }
 
       const skillName = parsedArgs.data.name;
-      const skill = config.skills[skillName];
+      const skill = lookupSkill(config, skillName);
       if (!skill) {
         throw new Error(`Skill not found: ${skillName}`);
       }

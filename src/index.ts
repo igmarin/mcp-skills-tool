@@ -53,7 +53,7 @@ async function main() {
     const absoluteConfigPath = path.resolve(configSource);
     console.error(`Loading config from local path: ${absoluteConfigPath}`);
     const configDir = path.dirname(absoluteConfigPath);
-    
+
     const fileContent = await fs.readFile(absoluteConfigPath, "utf-8");
     configJson = JSON.parse(fileContent);
 

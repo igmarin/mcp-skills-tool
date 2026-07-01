@@ -3,7 +3,7 @@ import {
   ListResourcesRequestSchema,
   ReadResourceRequestSchema,
   ListToolsRequestSchema,
-  CallToolRequestSchema
+  CallToolRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { DirectoryConfig } from "./parser.js";
@@ -21,7 +21,7 @@ import { DirectoryConfig } from "./parser.js";
  */
 export function createMcpServer(
   config: DirectoryConfig,
-  fetchSkillContent: (path: string) => Promise<string>
+  fetchSkillContent: (path: string) => Promise<string>,
 ): Server {
   const server = new Server(
     {
@@ -33,7 +33,7 @@ export function createMcpServer(
         resources: {},
         tools: {},
       },
-    }
+    },
   );
 
   // List all skills as resources
@@ -43,8 +43,8 @@ export function createMcpServer(
         uri: `skill://${name}`,
         name: name,
         mimeType: "text/markdown",
-        description: `Agent skill: ${name}`
-      }))
+        description: `Agent skill: ${name}`,
+      })),
     };
   });
 
@@ -86,8 +86,8 @@ export function createMcpServer(
           description: "List all available AI agent skills and their descriptions.",
           inputSchema: {
             type: "object",
-            properties: {}
-          }
+            properties: {},
+          },
         },
         {
           name: "get_skill",
@@ -97,13 +97,13 @@ export function createMcpServer(
             properties: {
               name: {
                 type: "string",
-                description: "The name of the skill to retrieve (e.g., 'code-review')"
-              }
+                description: "The name of the skill to retrieve (e.g., 'code-review')",
+              },
             },
-            required: ["name"]
-          }
-        }
-      ]
+            required: ["name"],
+          },
+        },
+      ],
     };
   });
 
@@ -117,9 +117,9 @@ export function createMcpServer(
         content: [
           {
             type: "text",
-            text: `Available skills:\n- ${skillsList}`
-          }
-        ]
+            text: `Available skills:\n- ${skillsList}`,
+          },
+        ],
       };
     }
 
@@ -141,9 +141,9 @@ export function createMcpServer(
           content: [
             {
               type: "text",
-              text: content
-            }
-          ]
+              text: content,
+            },
+          ],
         };
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : String(error);

@@ -33,6 +33,8 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "setup-hooks": "cp .git-hooks/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit",
     "start": "tsx src/index.ts",
     "prepublishOnly": "npm run build"
@@ -46,7 +48,9 @@
     "@types/node": "^26.0.1",
     "@vitest/coverage-v8": "^4.1.9",
     "eslint": "^9.39.1",
+    "eslint-config-prettier": "^10.1.8",
     "globals": "^17.7.0",
+    "prettier": "^3.9.4",
     "tsx": "^4.22.4",
     "typescript": "^5.4.5",
     "typescript-eslint": "^8.62.1",

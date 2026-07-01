@@ -1,11 +1,11 @@
-import { z } from 'zod';
+import { z } from "zod";
 
 /**
  * Zod schema for a single skill entry in directory.json.
  * Defines the shape of the object mapped under each skill name.
  */
 export const SkillSchema = z.object({
-  path: z.string()
+  path: z.string(),
 });
 
 /**
@@ -16,7 +16,7 @@ export const DirectoryConfigSchema = z.object({
   name: z.string(),
   version: z.string(),
   summary: z.string(),
-  skills: z.record(z.string(), SkillSchema)
+  skills: z.record(z.string(), SkillSchema),
 });
 
 /**

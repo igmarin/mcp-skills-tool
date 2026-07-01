@@ -16,7 +16,7 @@ export class CloudflareWorkerSseTransport implements Transport {
 
   constructor(
     public readonly sessionId: string,
-    private readonly postEndpoint: string
+    private readonly postEndpoint: string,
   ) {}
 
   async start(): Promise<void> {
@@ -113,7 +113,7 @@ export const activeTransports = new Map<string, CloudflareWorkerSseTransport>();
  */
 export async function handleMcpRequest(
   request: Request,
-  mcpServerCreator: () => Promise<Server>
+  mcpServerCreator: () => Promise<Server>,
 ): Promise<Response> {
   const url = new URL(request.url);
 
@@ -123,7 +123,7 @@ export async function handleMcpRequest(
     // Resolve relative path to message endpoint
     const postEndpoint = `${url.pathname}/post`;
     const transport = new CloudflareWorkerSseTransport(sessionId, postEndpoint);
-    
+
     activeTransports.set(sessionId, transport);
 
     const mcpServer = await mcpServerCreator();
@@ -139,15 +139,15 @@ export async function handleMcpRequest(
       cancel() {
         transport.close();
         activeTransports.delete(sessionId);
-      }
+      },
     });
 
     return new Response(stream, {
       headers: {
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache, no-transform",
-        "Connection": "keep-alive"
-      }
+        Connection: "keep-alive",
+      },
     });
   }
 

@@ -1,8 +1,8 @@
-import { execSync } from 'child_process';
-import { fileURLToPath } from 'url';
+import { execSync } from "child_process";
+import { fileURLToPath } from "url";
 
 export const sys = {
-  execSync: (cmd) => execSync(cmd)
+  execSync: (cmd) => execSync(cmd),
 };
 
 /**
@@ -49,15 +49,21 @@ export function fetchBotFeedback(repo, prNumber) {
   const reviews = fetchGithubApi(`repos/${repo}/pulls/${prNumber}/reviews`);
 
   const allItems = [
-    ...issueComments.filter(c => c.user).map(c => ({ body: c.body, created_at: c.created_at, user: c.user.login })),
-    ...reviewComments.filter(c => c.user).map(c => ({ body: c.body, created_at: c.created_at, user: c.user.login })),
-    ...reviews.filter(r => r.user).map(r => ({ body: r.body, created_at: r.submitted_at, user: r.user.login }))
+    ...issueComments
+      .filter((c) => c.user)
+      .map((c) => ({ body: c.body, created_at: c.created_at, user: c.user.login })),
+    ...reviewComments
+      .filter((c) => c.user)
+      .map((c) => ({ body: c.body, created_at: c.created_at, user: c.user.login })),
+    ...reviews
+      .filter((r) => r.user)
+      .map((r) => ({ body: r.body, created_at: r.submitted_at, user: r.user.login })),
   ];
 
   return allItems
-    .filter(item => {
+    .filter((item) => {
       const login = item.user.toLowerCase();
-      return login === 'github-actions[bot]' || login.includes('opencode');
+      return login === "github-actions[bot]" || login.includes("opencode");
     })
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 }
@@ -68,7 +74,8 @@ export function fetchBotFeedback(repo, prNumber) {
  * @returns {{ verdict: string, criticalBugs: number, securityIssues: number } | null}
  */
 export function parseMetadataBlock(botItems) {
-  const metadataRegex = /\[OPENCODE_VERDICT_METADATA\][\s\S]*?Verdict:\s*(\w+)[\s\S]*?CriticalBugs:\s*(\d+)[\s\S]*?SecurityIssues:\s*(\d+)/;
+  const metadataRegex =
+    /\[OPENCODE_VERDICT_METADATA\][\s\S]*?Verdict:\s*(\w+)[\s\S]*?CriticalBugs:\s*(\d+)[\s\S]*?SecurityIssues:\s*(\d+)/;
 
   for (const item of botItems) {
     if (!item.body) {
@@ -79,7 +86,7 @@ export function parseMetadataBlock(botItems) {
       return {
         verdict: match[1].toUpperCase(),
         criticalBugs: parseInt(match[2], 10),
-        securityIssues: parseInt(match[3], 10)
+        securityIssues: parseInt(match[3], 10),
       };
     }
   }
@@ -113,7 +120,7 @@ export function evaluateFeedbackFallback(botItems) {
     }
   }
 
-  const verdict = (criticalBugs > 0 || securityIssues > 0) ? 'NEGATIVE' : 'POSITIVE';
+  const verdict = criticalBugs > 0 || securityIssues > 0 ? "NEGATIVE" : "POSITIVE";
   return { verdict, criticalBugs, securityIssues };
 }
 
@@ -129,23 +136,23 @@ export function determineReviewState(verdict, criticalBugs, securityIssues) {
   // - NEGATIVE review OR any security issues OR > 2 critical bugs -> REQUEST_CHANGES
   // - Clean review (POSITIVE/APPROVED, 0 bugs, 0 security issues) -> APPROVE
   // - Otherwise -> COMMENT
-  if (verdict === 'NEGATIVE' || securityIssues > 0 || criticalBugs > 2) {
+  if (verdict === "NEGATIVE" || securityIssues > 0 || criticalBugs > 2) {
     return {
-      targetState: 'REQUEST_CHANGES',
-      message: `❌ OpenCode Review: Changes Requested. Found ${securityIssues} security issue(s) and ${criticalBugs} critical bug(s). Please review and address these issues.`
+      targetState: "REQUEST_CHANGES",
+      message: `❌ OpenCode Review: Changes Requested. Found ${securityIssues} security issue(s) and ${criticalBugs} critical bug(s). Please review and address these issues.`,
     };
   }
 
   if (criticalBugs === 0 && securityIssues === 0) {
     return {
-      targetState: 'APPROVE',
-      message: `✅ OpenCode Review: Approved! No critical bugs or security issues found. Everything looks good!`
+      targetState: "APPROVE",
+      message: `✅ OpenCode Review: Approved! No critical bugs or security issues found. Everything looks good!`,
     };
   }
 
   return {
-    targetState: 'COMMENT',
-    message: `💬 OpenCode Review: Comments left. Minor feedback or optimization suggestions provided (Critical Bugs: ${criticalBugs}).`
+    targetState: "COMMENT",
+    message: `💬 OpenCode Review: Comments left. Minor feedback or optimization suggestions provided (Critical Bugs: ${criticalBugs}).`,
   };
 }
 
@@ -161,17 +168,17 @@ export function submitPRReview(prNumber, state, message) {
   }
 
   const flags = {
-    'REQUEST_CHANGES': '--request-changes',
-    'APPROVE': '--approve',
-    'COMMENT': '--comment'
+    REQUEST_CHANGES: "--request-changes",
+    APPROVE: "--approve",
+    COMMENT: "--comment",
   };
 
-  const stateFlag = flags[state] || '--comment';
+  const stateFlag = flags[state] || "--comment";
   const escapedMessage = message
-    .replace(/\\/g, '\\\\')
+    .replace(/\\/g, "\\\\")
     .replace(/"/g, '\\"')
-    .replace(/`/g, '\\`')
-    .replace(/\$/g, '\\$');
+    .replace(/`/g, "\\`")
+    .replace(/\$/g, "\\$");
 
   const ghCommand = `gh pr review ${prNumber} ${stateFlag} -b "${escapedMessage}"`;
 
@@ -179,18 +186,25 @@ export function submitPRReview(prNumber, state, message) {
   try {
     sys.execSync(ghCommand);
   } catch (error) {
-    const stderr = error.stderr ? error.stderr.toString() : '';
-    const stdout = error.stdout ? error.stdout.toString() : '';
+    const stderr = error.stderr ? error.stderr.toString() : "";
+    const stdout = error.stdout ? error.stdout.toString() : "";
     const errorMsg = `${error.message}\n${stdout}\n${stderr}`;
 
-    if (state !== 'COMMENT' && (errorMsg.includes('not permitted') || errorMsg.includes('GraphQL:') || errorMsg.includes('permission'))) {
-      console.warn(`Warning: Failed to submit review as ${state} due to permission constraints. Falling back to COMMENT review.`);
+    if (
+      state !== "COMMENT" &&
+      (errorMsg.includes("not permitted") ||
+        errorMsg.includes("GraphQL:") ||
+        errorMsg.includes("permission"))
+    ) {
+      console.warn(
+        `Warning: Failed to submit review as ${state} due to permission constraints. Falling back to COMMENT review.`,
+      );
       const fallbackMessage = `⚠️ [Bot fallback from ${state}] ${message}`;
       const escapedFallback = fallbackMessage
-        .replace(/\\/g, '\\\\')
+        .replace(/\\/g, "\\\\")
         .replace(/"/g, '\\"')
-        .replace(/`/g, '\\`')
-        .replace(/\$/g, '\\$');
+        .replace(/`/g, "\\`")
+        .replace(/\$/g, "\\$");
       const fallbackCommand = `gh pr review ${prNumber} --comment -b "${escapedFallback}"`;
       console.warn(`Submitting fallback review: ${fallbackCommand}`);
       try {
@@ -213,14 +227,19 @@ export function dismissPreviousChangesRequested(repo, prNumber) {
   try {
     const reviewsJson = sys.execSync(`gh api repos/${repo}/pulls/${prNumber}/reviews`).toString();
     const reviews = JSON.parse(reviewsJson);
-    const botChangesRequested = reviews.filter(r => {
+    const botChangesRequested = reviews.filter((r) => {
       const login = r.user.login.toLowerCase();
-      return (login === 'github-actions[bot]' || login.includes('opencode')) && r.state === 'CHANGES_REQUESTED';
+      return (
+        (login === "github-actions[bot]" || login.includes("opencode")) &&
+        r.state === "CHANGES_REQUESTED"
+      );
     });
 
     for (const r of botChangesRequested) {
       console.warn(`Dismissing blocking review #${r.id}...`);
-      sys.execSync(`gh api -X PUT repos/${repo}/pulls/${prNumber}/reviews/${r.id}/dismissals -f message="Dismissed previous blocking review because the blocking criteria is no longer met."`);
+      sys.execSync(
+        `gh api -X PUT repos/${repo}/pulls/${prNumber}/reviews/${r.id}/dismissals -f message="Dismissed previous blocking review because the blocking criteria is no longer met."`,
+      );
     }
   } catch (error) {
     console.warn(`Warning: Failed to dismiss previous reviews: ${error.message}`);
@@ -242,18 +261,23 @@ export function main() {
     }
 
     const results = parseMetadataBlock(botItems) || evaluateFeedbackFallback(botItems);
-    console.warn(`Evaluation metrics: Verdict=${results.verdict}, CriticalBugs=${results.criticalBugs}, SecurityIssues=${results.securityIssues}`);
+    console.warn(
+      `Evaluation metrics: Verdict=${results.verdict}, CriticalBugs=${results.criticalBugs}, SecurityIssues=${results.securityIssues}`,
+    );
 
-    const { targetState, message } = determineReviewState(results.verdict, results.criticalBugs, results.securityIssues);
+    const { targetState, message } = determineReviewState(
+      results.verdict,
+      results.criticalBugs,
+      results.securityIssues,
+    );
     console.warn(`Determined review action: targetState=${targetState}`);
 
-    if (targetState === 'COMMENT' || targetState === 'APPROVE') {
+    if (targetState === "COMMENT" || targetState === "APPROVE") {
       dismissPreviousChangesRequested(repo, prNumber);
     }
 
     submitPRReview(prNumber, targetState, message);
     console.warn("Successfully submitted PR review status!");
-
   } catch (error) {
     console.error("Execution failed:", error.message);
     if (error.stdout) {

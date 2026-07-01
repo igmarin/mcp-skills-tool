@@ -1,12 +1,12 @@
-import fs from 'fs';
-import { fileURLToPath } from 'url';
+import fs from "fs";
+import { fileURLToPath } from "url";
 
 /**
  * Injectable fetch wrapper for testability.
  * In production, this is the global `fetch` function.
  */
 export const sys = {
-  fetch: (url, init) => fetch(url, init)
+  fetch: (url, init) => fetch(url, init),
 };
 
 /**
@@ -22,7 +22,7 @@ export function getEnvConfig() {
 
   if (!deepseekApiKey || !githubToken || !prNumber || !repoFullName) {
     throw new Error(
-      'Missing required environment variables: DEEPSEEK_API_KEY, GITHUB_TOKEN, PR_NUMBER, GITHUB_REPOSITORY'
+      "Missing required environment variables: DEEPSEEK_API_KEY, GITHUB_TOKEN, PR_NUMBER, GITHUB_REPOSITORY",
     );
   }
 
@@ -44,10 +44,10 @@ export async function fetchPrDiff(repoFullName, prNumber, githubToken) {
     {
       headers: {
         Authorization: `Bearer ${githubToken}`,
-        'X-GitHub-Api-Version': '2022-11-28',
-        Accept: 'application/vnd.github.v3.diff'
-      }
-    }
+        "X-GitHub-Api-Version": "2022-11-28",
+        Accept: "application/vnd.github.v3.diff",
+      },
+    },
   );
 
   if (!response.ok) {
@@ -99,20 +99,20 @@ CRITICAL INSTRUCTIONS:
   CriticalBugs: <count of critical bugs found>
   SecurityIssues: <count of security issues found>`;
 
-  const response = await sys.fetch('https://api.deepseek.com/chat/completions', {
-    method: 'POST',
+  const response = await sys.fetch("https://api.deepseek.com/chat/completions", {
+    method: "POST",
     headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: 'deepseek-v4-flash',
+      model: "deepseek-v4-flash",
       messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: `Review the following Git diff:\n\n${diff}` }
+        { role: "system", content: systemPrompt },
+        { role: "user", content: `Review the following Git diff:\n\n${diff}` },
       ],
-      temperature: 0.1
-    })
+      temperature: 0.1,
+    }),
   });
 
   if (!response.ok) {
@@ -124,7 +124,7 @@ CRITICAL INSTRUCTIONS:
   const content = data.choices?.[0]?.message?.content;
 
   if (!content) {
-    throw new Error('DeepSeek API returned an empty or unexpected response');
+    throw new Error("DeepSeek API returned an empty or unexpected response");
   }
 
   return content;
@@ -144,15 +144,15 @@ export async function postPrComment(repoFullName, prNumber, githubToken, body) {
   const response = await sys.fetch(
     `https://api.github.com/repos/${repoFullName}/issues/${prNumber}/comments`,
     {
-      method: 'POST',
+      method: "POST",
       headers: {
         Authorization: `Bearer ${githubToken}`,
-        'X-GitHub-Api-Version': '2022-11-28',
-        Accept: 'application/vnd.github+json',
-        'Content-Type': 'application/json'
+        "X-GitHub-Api-Version": "2022-11-28",
+        Accept: "application/vnd.github+json",
+        "Content-Type": "application/json",
       },
-      body: JSON.stringify({ body })
-    }
+      body: JSON.stringify({ body }),
+    },
   );
 
   if (!response.ok) {
@@ -174,20 +174,20 @@ export async function main() {
     const diff = await fetchPrDiff(repoFullName, prNumber, githubToken);
 
     if (!diff.trim()) {
-      console.warn('Diff is empty. Skipping review.');
+      console.warn("Diff is empty. Skipping review.");
       return;
     }
 
-    console.warn('Sending diff to DeepSeek (deepseek-v4-flash)...');
+    console.warn("Sending diff to DeepSeek (deepseek-v4-flash)...");
     const review = await fetchDeepSeekReview(diff, deepseekApiKey);
 
-    console.warn('Posting review comment to PR...');
+    console.warn("Posting review comment to PR...");
     await postPrComment(repoFullName, prNumber, githubToken, review);
 
-    fs.writeFileSync('review-result.txt', review, 'utf-8');
-    console.warn('Review completed successfully.');
+    fs.writeFileSync("review-result.txt", review, "utf-8");
+    console.warn("Review completed successfully.");
   } catch (error) {
-    console.error('Review failed:', error instanceof Error ? error.message : String(error));
+    console.error("Review failed:", error instanceof Error ? error.message : String(error));
     process.exit(1);
   }
 }

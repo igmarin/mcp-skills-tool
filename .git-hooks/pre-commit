@@ -23,11 +23,15 @@ echo "============================================="
 echo "Running type check..."
 npm run typecheck
 
-# 2. Run Linter
+# 2. Check Formatting
+echo "Checking formatting..."
+npm run format:check
+
+# 3. Run Linter
 echo "Running linter..."
 npm run lint
 
-# 3. Run Tests with Coverage
+# 4. Run Tests with Coverage
 echo "Running tests and checking coverage thresholds..."
 npm run test:coverage
 

@@ -4,10 +4,10 @@ on:
   push:
     branches:
       - main
-      - '**'
+      - "**"
   pull_request:
     branches:
-      - '**'
+      - "**"
 
 jobs:
   validate:
@@ -22,7 +22,7 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: 20
-          cache: 'npm'
+          cache: "npm"
           cache-dependency-path: package-lock.json
 
       - name: Install Dependencies
@@ -30,6 +30,9 @@ jobs:
 
       - name: Type Check
         run: npm run typecheck
+
+      - name: Check Formatting
+        run: npm run format:check
 
       - name: Run Linter
         run: npm run lint

@@ -1,0 +1,8 @@
+node_modules
+dist
+coverage
+package-lock.json
+
+# Markdown/docs are managed by hand for now; keep Prettier focused on code.
+# Remove this line to bring docs under Prettier as well.
+*.md

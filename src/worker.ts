@@ -1,177 +1,134 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
-import { JSONRPCMessage, JSONRPCMessageSchema } from "@modelcontextprotocol/sdk/types.js";
+import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
+import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 
 /**
- * A custom MCP Transport implementation designed for Cloudflare Workers / Pages Functions
- * using standard web streams (ReadableStream) and SSE (Server-Sent Events).
+ * In-memory registry of active Streamable HTTP sessions, keyed by session id.
+ *
+ * NOTE: This Map lives inside a single Worker isolate / Node process, so it is
+ * per-isolate and non-durable. It is sufficient for short-lived connections
+ * served by one instance, but a request routed to a different isolate will not
+ * find a session created elsewhere. For production scaling, route each session
+ * to a Cloudflare Durable Object (or an equivalent stateful backend) so session
+ * state survives across isolates and requests.
  */
-export class CloudflareWorkerSseTransport implements Transport {
-  private controller?: ReadableStreamDefaultController;
-  private isClosed = false;
+const sessions = new Map<string, WebStandardStreamableHTTPServerTransport>();
 
-  onclose?: () => void;
-  onerror?: (error: Error) => void;
-  onmessage?: (message: JSONRPCMessage) => void;
+/**
+ * CORS headers applied to every response so browser-based MCP clients can talk
+ * to the edge endpoint. `mcp-session-id` is exposed so clients can read the
+ * session id assigned during initialization.
+ */
+const CORS_HEADERS: Record<string, string> = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
+  "Access-Control-Allow-Headers":
+    "Content-Type, mcp-session-id, mcp-protocol-version, last-event-id",
+  "Access-Control-Expose-Headers": "mcp-session-id, mcp-protocol-version",
+};
 
-  constructor(
-    public readonly sessionId: string,
-    private readonly postEndpoint: string,
-  ) {}
-
-  async start(): Promise<void> {
-    // Start is handled by the connection flow
+/**
+ * Returns a new {@link Response} that preserves the status, body, and existing
+ * headers of `response` while merging in the shared {@link CORS_HEADERS}. A new
+ * Response is built (rather than mutating in place) because the streaming
+ * responses produced by the transport can carry immutable headers.
+ */
+function withCors(response: Response): Response {
+  const headers = new Headers(response.headers);
+  for (const [name, value] of Object.entries(CORS_HEADERS)) {
+    headers.set(name, value);
   }
-
-  /**
-   * Binds the standard web ReadableStreamDefaultController to this transport
-   */
-  setController(controller: ReadableStreamDefaultController) {
-    this.controller = controller;
-    // Send the initial endpoint message directing the client to our POST endpoint
-    this.sendEvent("endpoint", `${this.postEndpoint}?sessionId=${this.sessionId}`);
-  }
-
-  /**
-   * Sends a message to the client over the SSE stream
-   */
-  async send(message: JSONRPCMessage): Promise<void> {
-    if (this.isClosed) {
-      throw new Error("Transport is closed");
-    }
-    this.sendEvent("message", JSON.stringify(message));
-  }
-
-  private sendEvent(event: string, data: string) {
-    if (this.controller) {
-      try {
-        const payload = `event: ${event}\ndata: ${data}\n\n`;
-        this.controller.enqueue(new TextEncoder().encode(payload));
-      } catch {
-        this.close();
-      }
-    }
-  }
-
-  /**
-   * Receives incoming messages from the client (typically via HTTP POST)
-   * and routes them to the MCP Server handlers
-   */
-  async handleMessage(message: unknown): Promise<void> {
-    try {
-      const parsed = JSONRPCMessageSchema.parse(message);
-      if (this.onmessage) {
-        this.onmessage(parsed);
-      }
-    } catch (err: unknown) {
-      if (this.onerror) {
-        this.onerror(err instanceof Error ? err : new Error(String(err)));
-      }
-      throw err;
-    }
-  }
-
-  /**
-   * Gracefully closes the SSE stream and cleans up internal state.
-   * Invokes the optional {@link onclose} callback if registered.
-   */
-  async close(): Promise<void> {
-    if (this.isClosed) {
-      return;
-    }
-    this.isClosed = true;
-    if (this.controller) {
-      try {
-        this.controller.close();
-      } catch {
-        // Stream may already be closed
-      }
-    }
-    if (this.onclose) {
-      this.onclose();
-    }
-  }
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
 }
 
 /**
- * Map to store active CloudflareWorkerSseTransport sessions.
- * Keep in mind that Cloudflare Workers are ephemeral;
- * this map works fine for short-lived connections, but for production
- * scaling, consider routing requests to Durable Objects or checking connection state.
- */
-export const activeTransports = new Map<string, CloudflareWorkerSseTransport>();
-
-/**
- * Handles incoming HTTP requests for an MCP server running over SSE on Cloudflare Workers.
+ * Handles incoming HTTP requests for an MCP server running over the modern
+ * web-standard Streamable HTTP transport on Cloudflare Workers / Pages Functions
+ * (or any Web Standard runtime).
  *
- * - `GET`  requests establish a new SSE connection and generate a session ID
- * - `POST` requests to `/post?sessionId=...` forward JSON-RPC messages to the active transport
+ * A single endpoint multiplexes the whole session lifecycle:
+ * - `POST` without a `mcp-session-id` header carrying an `initialize` request
+ *   bootstraps a new stateful session: a fresh transport is created, a new MCP
+ *   {@link Server} is connected, the transport is stored in the session Map, and
+ *   the request is delegated to the transport.
+ * - `POST`/`GET` with a known `mcp-session-id` header are delegated to the
+ *   matching transport. An unknown/expired session id yields 404; a
+ *   non-initialize `POST` without a session id yields 400.
+ * - `DELETE` with a `mcp-session-id` header is delegated to the transport, which
+ *   tears the session down; the Map entry is removed via the transport callbacks.
+ * - `OPTIONS` returns a 204 CORS preflight response.
+ * - Anything else yields 404.
  *
- * @param request - The incoming web Request object
- * @param mcpServerCreator - Async factory that builds an MCP {@link Server} instance per connection
- * @returns An HTTP Response (SSE stream for GET, status ack for POST, or 404)
+ * @param request - The incoming web {@link Request} object
+ * @param mcpServerCreator - Async factory that builds an MCP {@link Server} instance per session
+ * @returns An HTTP {@link Response} (SSE/JSON stream, status ack, or error), always with CORS headers
  */
 export async function handleMcpRequest(
   request: Request,
   mcpServerCreator: () => Promise<Server>,
 ): Promise<Response> {
-  const url = new URL(request.url);
+  // CORS preflight.
+  if (request.method === "OPTIONS") {
+    return withCors(new Response(null, { status: 204 }));
+  }
 
-  // 1. Establish SSE Connection (GET)
-  if (request.method === "GET") {
-    const sessionId = crypto.randomUUID();
-    // Resolve relative path to message endpoint
-    const postEndpoint = `${url.pathname}/post`;
-    const transport = new CloudflareWorkerSseTransport(sessionId, postEndpoint);
+  const sessionId = request.headers.get("mcp-session-id") ?? undefined;
 
-    activeTransports.set(sessionId, transport);
+  // Existing session: delegate GET/POST/DELETE to the matching transport.
+  if (sessionId) {
+    const transport = sessions.get(sessionId);
+    if (!transport) {
+      return withCors(new Response("Session not found or expired", { status: 404 }));
+    }
+    return withCors(await transport.handleRequest(request));
+  }
+
+  // No session id header: only a POST carrying an `initialize` request may open
+  // a new session.
+  if (request.method === "POST") {
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return withCors(new Response("Bad Request: invalid JSON body", { status: 400 }));
+    }
+
+    if (!isInitializeRequest(body)) {
+      // A non-initialize request must carry a session id.
+      return withCors(new Response("Bad Request: missing mcp-session-id header", { status: 400 }));
+    }
+
+    const transport = new WebStandardStreamableHTTPServerTransport({
+      sessionIdGenerator: () => crypto.randomUUID(),
+      // Store the transport once the SDK assigns the session id.
+      onsessioninitialized: (id) => {
+        sessions.set(id, transport);
+      },
+      // Remove the session on an explicit DELETE teardown.
+      onsessionclosed: (id) => {
+        sessions.delete(id);
+      },
+    });
+    // Also clean up on the stream-close path (transport.close), so a dead
+    // session never lingers in the Map regardless of how it ended.
+    transport.onclose = () => {
+      if (transport.sessionId) {
+        sessions.delete(transport.sessionId);
+      }
+    };
 
     const mcpServer = await mcpServerCreator();
+    await mcpServer.connect(transport);
 
-    const stream = new ReadableStream({
-      start(controller) {
-        transport.setController(controller);
-        mcpServer.connect(transport).catch((err: unknown) => {
-          console.error("Failed to connect MCP server to transport:", err);
-          transport.close();
-        });
-      },
-      cancel() {
-        transport.close();
-        activeTransports.delete(sessionId);
-      },
-    });
-
-    return new Response(stream, {
-      headers: {
-        "Content-Type": "text/event-stream",
-        "Cache-Control": "no-cache, no-transform",
-        Connection: "keep-alive",
-      },
-    });
+    // The body is already consumed above for init detection, so hand the parsed
+    // value to the transport instead of letting it re-read the request stream.
+    return withCors(await transport.handleRequest(request, { parsedBody: body }));
   }
 
-  // 2. Handle Message Post (POST)
-  if (request.method === "POST" && url.pathname.endsWith("/post")) {
-    const sessionId = url.searchParams.get("sessionId");
-    if (!sessionId) {
-      return new Response("Missing sessionId parameter", { status: 400 });
-    }
-
-    const transport = activeTransports.get(sessionId);
-    if (!transport) {
-      return new Response("Session not found or expired", { status: 404 });
-    }
-
-    try {
-      const body = await request.json();
-      await transport.handleMessage(body);
-      return new Response("Accepted", { status: 202 });
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      return new Response(`Error handling message: ${message}`, { status: 400 });
-    }
-  }
-
-  return new Response("Not Found", { status: 404 });
+  // Unknown route/method.
+  return withCors(new Response("Not Found", { status: 404 }));
 }

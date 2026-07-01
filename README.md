@@ -1,5 +1,10 @@
 # MCP Skills Tool
 
+[![CI](https://github.com/igmarin/mcp-skills-tool/actions/workflows/ci.yml/badge.svg)](https://github.com/igmarin/mcp-skills-tool/actions/workflows/ci.yml)
+[![npm version](https://img.shields.io/npm/v/@igmarin/mcp-skills-tool)](https://www.npmjs.com/package/@igmarin/mcp-skills-tool)
+[![License: MIT](https://img.shields.io/npm/l/@igmarin/mcp-skills-tool)](LICENSE)
+[![codecov](https://codecov.io/gh/igmarin/mcp-skills-tool/branch/main/graph/badge.svg)](https://codecov.io/gh/igmarin/mcp-skills-tool)
+
 A versatile Model Context Protocol (MCP) server that reads `directory.json` skill packs (such as those used by Tessl) and dynamically exposes those skills as MCP resources, tools, and prompts to AI coding agents.
 
 It supports running locally via **STDIO** (npm/npx or Docker) and hosting on the edge via **HTTP/SSE** (Cloudflare Workers/Pages Functions).

@@ -55,6 +55,17 @@ jobs:
       - name: Run Tests with Coverage
         run: npm run test:coverage
 
+      - name: Upload coverage to Codecov
+        # Upload once (from the Node 20 job) to avoid duplicate reports. Kept
+        # non-blocking so a Codecov outage never fails CI; requires the
+        # CODECOV_TOKEN repo secret for uploads to succeed.
+        if: matrix.node-version == 20
+        uses: codecov/codecov-action@0fb7174895f61a3b6b78fc075e0cd60383518dac # v5.5.5
+        with:
+          files: ./coverage/lcov.info
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
+
       - name: Security Audit (non-blocking)
         # Reports known advisories without failing the build. Currently surfaces
         # transitive-only findings (hono via @modelcontextprotocol/sdk; esbuild via

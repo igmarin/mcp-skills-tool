@@ -97,7 +97,7 @@ docker run -i --rm -v /absolute/path/to/skills-repo:/skills igmarin/mcp-skills-t
 Enforced by `eslint.config.js` (flat config):
 - `@typescript-eslint/no-unused-vars`: error (args prefixed with `_` are ignored)
 - `@typescript-eslint/no-explicit-any`: error (disabled in test files)
-- `no-console`: warn (only `console.warn` and `console.error` allowed in production code)
+- `no-console`: **error** in `src/**/*.ts` (non-test), warn elsewhere — only `console.warn` / `console.error` (stderr) are allowed. On the stdio transport, `stdout` carries the JSON-RPC stream, so a stray `console.log`/`info`/`debug` in server code corrupts the protocol.
 - `eqeqeq`: error (always use strict equality)
 - `prefer-const`: error
 - `curly`: error (always use braces)

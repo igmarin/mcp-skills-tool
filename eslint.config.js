@@ -42,6 +42,17 @@ export default defineConfig([
       "@typescript-eslint/no-explicit-any": "off",
     },
   },
+  {
+    // Server/CLI code runs on the stdio transport, where stdout carries the
+    // JSON-RPC protocol stream. A stray console.log/info/debug there corrupts
+    // the wire, so only console.warn/error (stderr) are permitted here. Tests
+    // run off-transport and are exempt.
+    files: ["src/**/*.ts"],
+    ignores: ["**/*.test.ts", "**/*.spec.ts"],
+    rules: {
+      "no-console": ["error", { allow: ["warn", "error"] }],
+    },
+  },
   // Must be last: turns off ESLint rules that conflict with Prettier formatting.
   eslintConfigPrettier,
 ]);

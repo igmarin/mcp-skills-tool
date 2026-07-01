@@ -50,4 +50,7 @@ Initial public release.
 ### Removed
 - Deprecated hand-rolled SSE edge transport (`CloudflareWorkerSseTransport`) and the `activeTransports` export.
 
+### Fixed
+- Dropped the `./` prefix from the `bin` path in `package.json` so modern npm no longer strips the `mcp-skills-tool` command on publish (keeps `npx @igmarin/mcp-skills-tool` and the Docker/registry launch commands working).
+
 [1.0.0]: https://github.com/igmarin/mcp-skills-tool/releases/tag/v1.0.0

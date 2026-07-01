@@ -6,7 +6,7 @@
   "main": "dist/index.js",
   "type": "module",
   "bin": {
-    "mcp-skills-tool": "./dist/index.js"
+    "mcp-skills-tool": "dist/index.js"
   },
   "files": [
     "dist",

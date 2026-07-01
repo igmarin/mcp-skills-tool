@@ -39,11 +39,25 @@ export function createLocalSkillFetcher(
   };
 }
 
+/** A previously fetched body together with its revalidation validator(s). */
+interface RevalidationEntry {
+  etag?: string;
+  lastModified?: string;
+  body: string;
+}
+
 /**
  * Builds a fetcher that loads skill files over HTTP(S), confined to the origin
  * and directory prefix of the config URL. Skill paths that resolve to a
  * different origin, escape the config's directory, or use a non-HTTP(S) scheme
  * are rejected before any request is made (mitigating SSRF / scope escape).
+ *
+ * The fetcher performs cheap conditional revalidation: for each path it
+ * remembers the last `ETag` (or, failing that, `Last-Modified`) and body. On a
+ * subsequent fetch it sends `If-None-Match` / `If-Modified-Since`, and a
+ * `304 Not Modified` response returns the stored body without re-downloading
+ * it. This complements the higher-level TTL cache (see `createCachingFetcher`),
+ * which avoids the round-trip entirely while an entry is still fresh.
  *
  * @param configUrl - URL the directory.json config was loaded from
  * @param fetchImpl - Injectable fetch implementation (defaults to global fetch)
@@ -53,6 +67,9 @@ export function createRemoteSkillFetcher(
   fetchImpl: typeof fetch = fetch,
 ): SkillFetcher {
   const base = new URL(".", new URL(configUrl));
+  // Per-path revalidation store: validator(s) + last body for conditional GETs.
+  const revalidation = new Map<string, RevalidationEntry>();
+
   return async (skillPath) => {
     assertUsableSkillPath(skillPath);
     const target = new URL(skillPath, base);
@@ -66,10 +83,39 @@ export function createRemoteSkillFetcher(
     if (target.origin !== base.origin || !target.pathname.startsWith(base.pathname)) {
       throw new Error(`Skill URL escapes the config scope: ${target.href}`);
     }
-    const res = await fetchImpl(target.toString());
+
+    const url = target.toString();
+    const prior = revalidation.get(url);
+    const conditionalHeaders: Record<string, string> = {};
+    if (prior?.etag) {
+      conditionalHeaders["If-None-Match"] = prior.etag;
+    } else if (prior?.lastModified) {
+      conditionalHeaders["If-Modified-Since"] = prior.lastModified;
+    }
+
+    const res =
+      Object.keys(conditionalHeaders).length > 0
+        ? await fetchImpl(url, { headers: conditionalHeaders })
+        : await fetchImpl(url);
+
+    // 304 Not Modified: the stored body is still current. Handle this before the
+    // `!res.ok` branch, since a 304 is deliberately not "ok".
+    if (res.status === 304 && prior) {
+      return prior.body;
+    }
     if (!res.ok) {
       throw new Error(`Failed to fetch skill content from ${target.href}: ${res.statusText}`);
     }
-    return res.text();
+
+    const body = await res.text();
+    const etag = res.headers?.get("ETag") ?? undefined;
+    const lastModified = res.headers?.get("Last-Modified") ?? undefined;
+    if (etag || lastModified) {
+      revalidation.set(url, { etag, lastModified, body });
+    } else {
+      // No validator to revalidate against next time; drop any stale record.
+      revalidation.delete(url);
+    }
+    return body;
   };
 }

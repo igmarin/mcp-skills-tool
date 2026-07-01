@@ -6,6 +6,7 @@ import { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { z } from "zod";
 import { parseDirectoryConfig, DirectoryConfig } from "./parser.js";
 import { createLocalSkillFetcher, createRemoteSkillFetcher, SkillFetcher } from "./skill-source.js";
+import { createCachingFetcher, SkillCacheOptions } from "./cache.js";
 import { createMcpServer } from "./mcp-server.js";
 
 /**
@@ -221,13 +222,16 @@ export interface RunCliDeps {
   installSignals?: (server: ConnectableServer) => void;
   /** Config loader. Defaults to {@link loadConfig}. */
   loadConfigImpl?: typeof loadConfig;
+  /** Wraps the loaded fetcher with caching. Defaults to {@link createCachingFetcher}. */
+  wrapFetcher?: (inner: SkillFetcher, options?: SkillCacheOptions) => SkillFetcher;
   /** Informational logger (stderr). Defaults to `console.error`. */
   log?: (message: string) => void;
 }
 
 /**
  * CLI bootstrap: parses `--config`, loads and validates the config source,
- * creates the MCP server, connects it to the stdio transport, installs
+ * wraps the skill fetcher with an in-memory TTL cache (unless `--no-cache` is
+ * passed), creates the MCP server, connects it to the stdio transport, installs
  * SIGINT/SIGTERM handlers for a clean shutdown, and logs the startup line to
  * stderr. Extracted from the `index.ts` shim so the wiring is unit-testable via
  * {@link RunCliDeps} without touching real stdio or a real server.
@@ -238,6 +242,7 @@ export async function runCli(deps: RunCliDeps = {}): Promise<void> {
   const createTransport = deps.createTransport ?? (() => new StdioServerTransport());
   const installSignals = deps.installSignals ?? installSignalHandlers;
   const loadConfigImpl = deps.loadConfigImpl ?? loadConfig;
+  const wrapFetcher = deps.wrapFetcher ?? createCachingFetcher;
   const log = deps.log ?? ((message: string) => console.error(message));
 
   const program = new Command();
@@ -246,12 +251,30 @@ export async function runCli(deps: RunCliDeps = {}): Promise<void> {
     .description("MCP Server to expose agent skills defined in directory.json")
     .version("1.0.0")
     .requiredOption("-c, --config <path>", "Path or URL to directory.json config file")
+    .option("--no-cache", "Disable in-memory skill-content caching (always fetch fresh)")
+    .option("--cache-ttl <seconds>", "Skill-content cache TTL in seconds (default: 300)")
     .parse(argv);
 
-  const options = program.opts<{ config: string }>();
+  const options = program.opts<{ config: string; cache: boolean; cacheTtl?: string }>();
 
   const { config, fetchSkillContent } = await loadConfigImpl(options.config);
-  const server = createServer(config, fetchSkillContent);
+
+  let fetcher = fetchSkillContent;
+  if (options.cache !== false) {
+    let cacheOptions: SkillCacheOptions | undefined;
+    if (options.cacheTtl !== undefined) {
+      const seconds = Number(options.cacheTtl);
+      if (!Number.isFinite(seconds) || seconds < 0) {
+        throw new CliError(
+          `Invalid --cache-ttl value: ${options.cacheTtl} (expected a non-negative number of seconds).`,
+        );
+      }
+      cacheOptions = { ttlMs: seconds * 1000 };
+    }
+    fetcher = wrapFetcher(fetchSkillContent, cacheOptions);
+  }
+
+  const server = createServer(config, fetcher);
 
   const transport = createTransport();
   await server.connect(transport);

@@ -280,6 +280,7 @@ describe("runCli", () => {
     const transport = { id: "fake-transport" };
     const createTransport = vi.fn(() => transport);
     const installSignals = vi.fn();
+    const wrapFetcher = vi.fn((inner: (p: string) => Promise<string>) => inner);
     const logs: string[] = [];
 
     await runCli({
@@ -288,10 +289,14 @@ describe("runCli", () => {
       createServer: createServer as unknown as RunCliDeps["createServer"],
       createTransport: createTransport as unknown as RunCliDeps["createTransport"],
       installSignals: installSignals as unknown as RunCliDeps["installSignals"],
+      wrapFetcher: wrapFetcher as unknown as RunCliDeps["wrapFetcher"],
       log: (m) => logs.push(m),
     });
 
     expect(loadConfigImpl).toHaveBeenCalledWith("/skills/directory.json");
+    // Caching is on by default: the loaded fetcher is passed through wrapFetcher
+    // (identity here) with no explicit TTL override.
+    expect(wrapFetcher).toHaveBeenCalledWith(fetchSkillContent, undefined);
     expect(createServer).toHaveBeenCalledWith(validConfig, fetchSkillContent);
     expect(connect).toHaveBeenCalledWith(transport);
     expect(installSignals).toHaveBeenCalledWith(server);
@@ -402,5 +407,105 @@ describe("runCli", () => {
 
     await expect(promise).rejects.toBeInstanceOf(CliError);
     await expect(promise).rejects.toThrow("Config file not found or unreadable");
+  });
+
+  it("caches skill content by default (inner fetcher hit only once for two reads)", async () => {
+    let calls = 0;
+    const fetchSkillContent = vi.fn(async () => `body${++calls}`);
+    const loadConfigImpl = vi.fn(async () => ({ config: validConfig, fetchSkillContent }));
+    let captured: ((p: string) => Promise<string>) | undefined;
+    const createServer = vi.fn((_config: unknown, fetcher: (p: string) => Promise<string>) => {
+      captured = fetcher;
+      return { connect: vi.fn(async () => {}), close: vi.fn(async () => {}) };
+    });
+
+    await runCli({
+      argv: argvFor("/skills/directory.json"),
+      loadConfigImpl: loadConfigImpl as unknown as typeof loadConfig,
+      createServer: createServer as unknown as RunCliDeps["createServer"],
+      createTransport: (() => ({ id: "t" })) as unknown as RunCliDeps["createTransport"],
+      installSignals: (() => {}) as unknown as RunCliDeps["installSignals"],
+      log: () => {},
+    });
+
+    expect(captured).toBeDefined();
+    const first = await captured!("skills/x.md");
+    const second = await captured!("skills/x.md");
+    expect(first).toBe("body1");
+    expect(second).toBe("body1");
+    expect(fetchSkillContent).toHaveBeenCalledTimes(1);
+  });
+
+  it("skips caching when --no-cache is passed (inner fetcher called on every read)", async () => {
+    let calls = 0;
+    const fetchSkillContent = vi.fn(async () => `body${++calls}`);
+    const loadConfigImpl = vi.fn(async () => ({ config: validConfig, fetchSkillContent }));
+    const wrapFetcher = vi.fn();
+    let captured: ((p: string) => Promise<string>) | undefined;
+    const createServer = vi.fn((_config: unknown, fetcher: (p: string) => Promise<string>) => {
+      captured = fetcher;
+      return { connect: vi.fn(async () => {}), close: vi.fn(async () => {}) };
+    });
+
+    await runCli({
+      argv: [...argvFor("/skills/directory.json"), "--no-cache"],
+      loadConfigImpl: loadConfigImpl as unknown as typeof loadConfig,
+      wrapFetcher: wrapFetcher as unknown as RunCliDeps["wrapFetcher"],
+      createServer: createServer as unknown as RunCliDeps["createServer"],
+      createTransport: (() => ({ id: "t" })) as unknown as RunCliDeps["createTransport"],
+      installSignals: (() => {}) as unknown as RunCliDeps["installSignals"],
+      log: () => {},
+    });
+
+    // The wrapper is never invoked and the raw fetcher is passed straight through.
+    expect(wrapFetcher).not.toHaveBeenCalled();
+    expect(captured).toBe(fetchSkillContent);
+    await captured!("skills/x.md");
+    await captured!("skills/x.md");
+    expect(fetchSkillContent).toHaveBeenCalledTimes(2);
+  });
+
+  it("converts --cache-ttl seconds into a millisecond TTL for the cache wrapper", async () => {
+    const fetchSkillContent = vi.fn(async () => "body");
+    const loadConfigImpl = vi.fn(async () => ({ config: validConfig, fetchSkillContent }));
+    const wrapFetcher = vi.fn((inner: (p: string) => Promise<string>) => inner);
+    const createServer = vi.fn(() => ({
+      connect: vi.fn(async () => {}),
+      close: vi.fn(async () => {}),
+    }));
+
+    await runCli({
+      argv: [...argvFor("/skills/directory.json"), "--cache-ttl", "60"],
+      loadConfigImpl: loadConfigImpl as unknown as typeof loadConfig,
+      wrapFetcher: wrapFetcher as unknown as RunCliDeps["wrapFetcher"],
+      createServer: createServer as unknown as RunCliDeps["createServer"],
+      createTransport: (() => ({ id: "t" })) as unknown as RunCliDeps["createTransport"],
+      installSignals: (() => {}) as unknown as RunCliDeps["installSignals"],
+      log: () => {},
+    });
+
+    expect(wrapFetcher).toHaveBeenCalledWith(fetchSkillContent, { ttlMs: 60000 });
+  });
+
+  it("rejects an invalid --cache-ttl (non-numeric or negative) with a CliError", async () => {
+    const run = (ttlArgs: string[]) =>
+      runCli({
+        argv: [...argvFor("/skills/directory.json"), ...ttlArgs],
+        loadConfigImpl: (async () => ({
+          config: validConfig,
+          fetchSkillContent: async () => "body",
+        })) as unknown as typeof loadConfig,
+        createServer: (() => ({
+          connect: vi.fn(),
+          close: vi.fn(),
+        })) as unknown as RunCliDeps["createServer"],
+        createTransport: (() => ({})) as unknown as RunCliDeps["createTransport"],
+        installSignals: (() => {}) as unknown as RunCliDeps["installSignals"],
+        log: () => {},
+      });
+
+    await expect(run(["--cache-ttl", "abc"])).rejects.toBeInstanceOf(CliError);
+    await expect(run(["--cache-ttl", "abc"])).rejects.toThrow("Invalid --cache-ttl");
+    await expect(run(["--cache-ttl=-5"])).rejects.toThrow("Invalid --cache-ttl");
   });
 });

@@ -34,9 +34,12 @@ The project was built using Test-Driven Development (TDD) with Vitest.
 ```
 ├── src/
 │   ├── index.ts           # CLI entrypoint (stdio transport, Commander args)
+│   ├── cli.ts             # CLI bootstrap/lifecycle helpers (loadConfig, runCli, caching wrap)
 │   ├── mcp-server.ts      # Core MCP server factory (resources, tools, handlers)
 │   ├── parser.ts          # Zod schema + parser for directory.json config
-│   ├── worker.ts          # Cloudflare Worker SSE transport + request handler
+│   ├── skill-source.ts    # Local/remote skill fetchers (scope confinement + ETag revalidation)
+│   ├── cache.ts           # Injectable in-memory TTL cache wrapper for skill content
+│   ├── worker.ts          # Cloudflare Worker Streamable HTTP transport + request handler
 │   ├── mcp-server.test.ts # Unit tests for MCP server behavior
 │   └── parser.test.ts     # Unit tests for config parsing
 ├── scripts/
@@ -129,6 +132,14 @@ Defines the Zod schema for `directory.json`:
 - `DirectoryConfig` — `{ name, version, summary, skills: Record<string, Skill> }`, where a `Skill` is `{ path: string; name?: string; description?: string; tags?: string[]; version?: string }`. Only `path` is required; the metadata fields are all `.optional()` so path-only configs remain valid. The object is non-strict, so unknown keys are stripped.
 - `parseDirectoryConfig(json: unknown)` — validates and returns typed config.
 
+### `src/skill-source.ts`
+Defines `SkillFetcher = (skillPath: string) => Promise<string>` and its two implementations, both dependency-injectable:
+- `createLocalSkillFetcher(configDir, readFile?)` — reads skill files from disk, confined to `configDir` (rejects `../` traversal, absolute paths, null bytes, and empty paths before any read).
+- `createRemoteSkillFetcher(configUrl, fetchImpl?)` — loads skills over HTTP(S), confined to the config URL's origin + directory prefix (mitigating SSRF / scope escape). It keeps a per-path record of the last `ETag` (falling back to `Last-Modified`) and body, sends `If-None-Match` / `If-Modified-Since` on subsequent fetches, and returns the stored body on a `304 Not Modified` (handled before the `!res.ok` branch, since 304 is not "ok").
+
+### `src/cache.ts`
+Exports `createCachingFetcher(inner, options?)` — an injectable in-memory TTL cache that wraps any `SkillFetcher`. Keyed by skill path: a fresh entry is returned without calling `inner` (hit); otherwise `inner` is called and the result stored with `expiresAt = now() + ttlMs` (miss). `SkillCacheOptions` are `{ ttlMs?, now? }`; `now` defaults to `Date.now` (inject a fake clock in tests to simulate expiry) and `ttlMs` defaults to `DEFAULT_CACHE_TTL_MS` (300_000). A non-positive `ttlMs` disables caching (the `inner` fetcher is returned unchanged). Rejections are never cached. Compiled to `dist/cache.js`, so worker/library consumers can import it directly.
+
 ### `src/mcp-server.ts`
 Exports `createMcpServer(config, fetchSkillContent)` which returns an MCP `Server` instance with:
 - **Resources:** `skill://<recordKey>` URIs mapped to skill markdown files. The resource `name`/`description` prefer the skill's optional `name`/`description` metadata, falling back to the record key and `Agent skill: <recordKey>`.
@@ -139,7 +150,7 @@ Bootstrap and lifecycle helpers shared by the entrypoint, all dependency-injecta
 - `loadConfig(source, deps?)` — resolves a local path or `http(s)://` URL, validates `directory.json`, and returns `{ config, fetchSkillContent }`. Expected failures are wrapped in `CliError`.
 - `reportFatalError(error, log?)` — prints a `CliError` concisely (stack for unexpected errors) and returns exit code 1.
 - `installSignalHandlers` / `shutdown` — SIGINT/SIGTERM graceful shutdown.
-- `runCli(deps?)` — the CLI bootstrap: parses `--config` (Commander), calls `loadConfig` → `createMcpServer` → `new StdioServerTransport()` → `server.connect` → `installSignalHandlers`, then logs the startup line to stderr. Every external constructor/function is overridable via `RunCliDeps`, so the entrypoint wiring is unit-tested without real stdio or a real server.
+- `runCli(deps?)` — the CLI bootstrap: parses `--config`, `--no-cache`, and `--cache-ttl <seconds>` (Commander), calls `loadConfig`, wraps the fetcher with `createCachingFetcher` unless `--no-cache` is set (converting `--cache-ttl` seconds→ms; an invalid value raises `CliError`), then `createMcpServer` → `new StdioServerTransport()` → `server.connect` → `installSignalHandlers`, and logs the startup line to stderr. Every external constructor/function — including the caching `wrapFetcher` — is overridable via `RunCliDeps`, so the entrypoint wiring is unit-tested without real stdio or a real server.
 
 ### `src/index.ts`
 Thin CLI entrypoint shim (with the `#!/usr/bin/env node` shebang): calls `runCli()` and maps a rejection to a process exit code via `reportFatalError`. All wiring lives in `runCli` (`src/cli.ts`).

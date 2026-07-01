@@ -13,7 +13,7 @@ Semantic Versioning applies to this package's **public API**, defined as:
 - **CLI** — the `mcp-skills-tool` binary and its documented options (`--config <path|url>`).
 - **Library exports** — `createMcpServer` and `handleMcpRequest`, and their documented type signatures.
 - **Configuration** — the `directory.json` schema accepted by the server.
-- **MCP surface** — the `skill://<name>` resource URIs and the `list_skills` / `get_skill` tools exposed to clients.
+- **MCP surface** — the `skill://<name>` resource URIs and the `list_skills` / `search_skills` / `get_skill` tools exposed to clients.
 
 Anything else — internal helpers, transport implementation details, the compiled
 `dist/` layout, and test utilities — is **not** part of the public API and may
@@ -33,6 +33,8 @@ Initial public release.
 - Packaging that publishes the compiled `dist/` only, a `tsc --noEmit` type-check gate in CI and the pre-commit hook, and an MIT license.
 - Optional per-skill metadata in `directory.json` (`name`, `description`, `tags`, `version`), surfaced in `resources/list` (resource `name`/`description`) and in the `list_skills` tool output (name, description, tags, prefixed with the pack `summary`). All fields are optional, so existing path-only configs are unchanged.
 - In-memory skill-content caching keyed by skill path with a configurable TTL (default 300s), so repeated `resources/read` / `get_skill` calls avoid re-fetching. Remote packs additionally revalidate cheaply after expiry via `ETag`/`If-None-Match` (falling back to `Last-Modified`/`If-Modified-Since`), reusing the stored body on a `304 Not Modified`. Configure with `--cache-ttl <seconds>` or opt out with `--no-cache`; errors are never cached.
+- `search_skills` tool that filters skills by a case-insensitive substring `query` matched against each skill's record key, `name`, `description`, and `tags`, with an optional `tags` argument to further restrict matches; a query with no matches returns a plain "no skills match" message rather than an error.
+- Cursor-based pagination for `resources/list` per the MCP spec: resources are returned in deterministic pages with an opaque `nextCursor` when more remain (absent on the last page), and an invalid cursor is rejected as an `InvalidParams` error. The `list_skills` tool output is capped for very large packs and flags the remainder, pointing at `search_skills`. Small packs are unaffected (single page, no cursor, full listing).
 
 ### Changed
 - Edge/serverless transport migrated to the modern web-standard **Streamable HTTP** transport (`WebStandardStreamableHTTPServerTransport`). `handleMcpRequest` now serves the full session lifecycle (initialize / message / teardown) on a single endpoint via `mcp-session-id`, and adds CORS headers to every response.

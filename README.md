@@ -67,6 +67,12 @@ npm run test:watch
 
 ---
 
+## Versioning & Changelog
+
+Release notes live in [CHANGELOG.md](CHANGELOG.md). This project follows [Semantic Versioning](https://semver.org/); the changelog header defines the public API covered by the version contract.
+
+---
+
 ## Integration with Cloudflare Workers & Hono
 
 This package includes a helper (`handleMcpRequest` in `dist/worker.js`) to host your MCP server over Server-Sent Events (SSE) on serverless platforms like Cloudflare Workers or Pages Functions running Hono.

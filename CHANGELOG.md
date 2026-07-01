@@ -45,6 +45,7 @@ Initial public release.
 - Hardened, multi-arch (`linux/amd64` + `linux/arm64`) Docker image published to GitHub Container Registry (`ghcr.io/igmarin/mcp-skills-tool`) on every `v*` tag via `docker.yml`. The runtime image now runs as the unprivileged `node` user (never root) and carries a `HEALTHCHECK` that validates the entrypoint is runnable (`node dist/index.js --version`, since the stdio server has no port to probe).
 - Contributor scaffolding: GitHub issue templates (`bug_report.md`, `feature_request.md`, and a `config.yml` that disables blank issues and links to Discussions/Security), a pull request template (`.github/PULL_REQUEST_TEMPLATE.md`), and README status badges (CI, npm version, license, Codecov coverage).
 - CI now emits an `lcov` coverage report (`vitest` `coverage.reporter: ["text", "lcov"]`) and uploads it to [Codecov](https://codecov.io/gh/igmarin/mcp-skills-tool) via a SHA-pinned `codecov/codecov-action` step in `ci.yml` (runs once on the Node 20 matrix leg, non-blocking, token-based; requires a `CODECOV_TOKEN` repo secret).
+- `CODE_OF_CONDUCT.md` (Contributor Covenant v2.1), linked from `README.md` and `CONTRIBUTING.md`, so the project shows the GitHub community-standards Code of Conduct check.
 
 ### Changed
 - Edge/serverless transport migrated to the modern web-standard **Streamable HTTP** transport (`WebStandardStreamableHTTPServerTransport`). `handleMcpRequest` now serves the full session lifecycle (initialize / message / teardown) on a single endpoint via `mcp-session-id`, and adds CORS headers to every response.

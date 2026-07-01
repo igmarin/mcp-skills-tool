@@ -2,6 +2,8 @@
 
 Thanks for your interest in improving `@igmarin/mcp-skills-tool`. This guide covers local setup, the quality gates, and how to propose changes.
 
+This project has a [Code of Conduct](CODE_OF_CONDUCT.md). By participating, you are expected to uphold it.
+
 ## Prerequisites
 
 - **Node.js 20+** (an `.nvmrc` / `.node-version` pinned to `20` is provided — run `nvm use`).

@@ -60,7 +60,7 @@ jobs:
         # non-blocking so a Codecov outage never fails CI; requires the
         # CODECOV_TOKEN repo secret for uploads to succeed.
         if: matrix.node-version == 20
-        uses: codecov/codecov-action@0fb7174895f61a3b6b78fc075e0cd60383518dac # v5.5.5
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
         with:
           files: ./coverage/lcov.info
           fail_ci_if_error: false
